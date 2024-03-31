@@ -1,0 +1,7 @@
+global proc guidrawer()
+{
+	python("import guidrawer.ui");
+	python("import guidrawer.compat");
+	python("guidrawer.compat.reload(guidrawer.ui)");
+	python("guidrawer.ui.show()");
+}

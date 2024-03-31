@@ -1,0 +1,7 @@
+global proc guidrawer_menu()
+{
+	python("import guidrawer.menu");
+	python("import guidrawer.compat");
+	python("guidrawer.compat.reload(guidrawer.menu)");
+	python("guidrawer.menu.mGear_add_menu()");
+}
