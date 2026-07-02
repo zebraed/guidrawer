@@ -21,8 +21,8 @@ To install Guidrawer, follow these steps:
 
 To use Guidrawer as GUI on Maya, follow these steps:
 
-1. Import the module: `import guidrawer.ui`
-2. Call the show functions: `guidrawer.showUI()` or `guidrawer.ui.showUI()`
+1. Import the module: `import guidrawer`
+2. Call the show functions: `guidrawer.showUI()`
 
 
 Any component type registered in mGear (classic / EPIC / custom via
