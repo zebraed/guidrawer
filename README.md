@@ -25,12 +25,6 @@ To use Guidrawer as GUI on Maya, follow these steps:
 2. Call the show functions: `guidrawer.showUI()` or `guidrawer.ui.showUI()`
 
 
-To use Guidrawer in your scripts on Maya, follow these steps:
-
-1. Import the module: `import guidrawer.drawer as drawer`
-2. Initialize the Guidrawer object: `gd = drawer.Guidrawer()`
-3. Call the drawing functions with args: `gd.create_guide(comp_type, name, side, parent_root, idx, **opt)`
-
 Any component type registered in mGear (classic / EPIC / custom via
 `MGEAR_SHIFTER_COMPONENT_PATH`) can be drawn without writing extra code.
 
