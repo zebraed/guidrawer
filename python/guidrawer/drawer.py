@@ -1,63 +1,123 @@
-from . import base
+from maya import cmds
+
 from . import exception
 from . import loader
+from . import shifter_bridge as bridge
 
 
-class Guidrawer(base.GuidrawerBase):
-    """Draw main class."""
+def _component_display_sort_key(name):
+    """Sort key: lowercase-first (a-z), then uppercase-first (A-Z)."""
+    if not name:
+        return (0, name)
+    if name[0].isupper():
+        return (1, name.lower())
+    return (0, name.lower())
+
+
+class Guidrawer:
+    """Main class for guide drawing.
+
+    Can draw any component type recognized by mGear via a generic flow.
+    Place preset modules under component/ to add components with custom
+    draw behavior.
+    """
 
     def __init__(self):
-        super().__init__()
-        self.__loader = loader.Loader()
-        self.modules = None
-        self.component_type = None
-        self.comp_guide = None
-        self.reload_module()
+        self._presets = loader.load_presets()
 
-    def reload_module(self):
-        self.modules = self.__loader.load_component()
+    def reload_presets(self):
+        self._presets = loader.load_presets()
 
     def list_component_name(self):
-        return list(self.modules.keys())
+        """Return names of drawable components.
 
-    def load_component(self, component_type):
-        if component_type in self.modules:
-            _mod = self.modules[component_type]
-            self.draw_guide = _mod.ComponentGuide.draw_guide
-            self.component_type = _mod.ComponentGuide.componentType
-            self.comp_guide = self.get_componentGuide(self.component_type)
-            orig_modal_positions = self.comp_guide.modalPositions
-            if hasattr(_mod.ComponentGuide, "override_modalPositions"):
-                if _mod.ComponentGuide.override_modalPositions is True:
-                    self.comp_guide.modalPositions = (
-                        _mod.ComponentGuide.custom_modalPositions.__get__(
-                            self.comp_guide
-                        )
-                    )
-                else:
-                    self.comp_guide.modalPositions = orig_modal_positions
-            else:
-                self.comp_guide.modalPositions = orig_modal_positions
-        else:
-            raise exception.ComponentNotFoundError(
-                f"Not found comp type. : {component_type}"
-            )
+        Lists mGear types (a-z, then A-Z), then custom presets.
+        """
+        preset_names = set(self._presets.keys())
+        names = [
+            comp_type
+            for comp_type in bridge.list_component_types()
+            if comp_type not in preset_names
+        ]
+        names.sort(key=_component_display_sort_key)
+        for preset_name in self._presets.keys():
+            names.append(preset_name)
+        return names
 
-    def create_guide(self, name, side, parent_root, idx=None, **opt):
-        if self.comp_guide is None:
-            return None
-        parent_root = self.vaildate_guide(parent_root)
+    def is_chain(self, comp_type):
+        """Return whether the component is chain-like (needs section count)."""
+        preset = self._presets.get(comp_type)
+        if preset:
+            comp_type = preset.COMPONENT_TYPE
+        return bridge.is_chain_type(comp_type)
+
+    def get_mgear_comp_type(self, comp_type):
+        preset = self._presets.get(comp_type)
+        if preset:
+            return preset.COMPONENT_TYPE
+        return comp_type
+
+    def get_component_name(self, comp_type, name):
+        if name:
+            return name
+        return bridge.get_default_name(self.get_mgear_comp_type(comp_type))
+
+    def get_next_component_index(
+        self, comp_type, name, side, parent_root, start_index=0
+    ):
+        """Return the next valid component index for the given properties."""
+        return bridge.get_next_component_index(
+            self.get_component_name(comp_type, name),
+            side,
+            self.get_mgear_comp_type(comp_type),
+            parent_root,
+            start_index,
+        )
+
+    def create_guide(self, comp_type, name, side, parent_root, idx=0, **opt):
+        """Draw a guide component.
+
+        Args:
+            comp_type (str): Component type or preset name.
+            name (str): Component name. Empty uses mGear default name.
+            side (str): Side (C / L / R).
+            parent_root (str): Parent guide node name.
+            idx (int): Component index.
+            **opt: For chain types: sections_number, dir_axis, spacing.
+
+        Returns:
+            str or None: New guide root name.
+        """
+        parent_root = bridge.validate_guide(parent_root)
         if not parent_root:
             return None
-        if not idx:
-            idx = 0
 
-        guide_names = self.draw_guide(
-            name,
-            self.comp_guide,
-            side,
-            idx,
-            parent_root,
-            **opt,
-        )
-        return guide_names
+        preset = self._presets.get(comp_type)
+        if preset:
+            return preset.draw_guide(name, side, idx, parent_root, **opt)
+
+        if comp_type not in bridge.list_component_types():
+            raise exception.ComponentNotFoundError(
+                f"Not found comp type. : {comp_type}"
+            )
+
+        chain_opt = None
+        if self.is_chain(comp_type):
+            chain_opt = opt
+
+        guide_root = bridge.draw_component(parent_root, comp_type, chain_opt)
+        if not guide_root:
+            return None
+
+        if not name:
+            name = bridge.get_default_name(comp_type)
+        return bridge.rename_component(guide_root, name, side, idx)
+
+    def duplicate_guide(self, nodes, symmetrize=False):
+        """Find component root from selected nodes and duplicate."""
+        for node in nodes:
+            root = bridge.get_component_root(node)
+            if root:
+                bridge.duplicate_component(root, symmetrize)
+            else:
+                cmds.warning("Can not got guide root.")

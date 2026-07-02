@@ -22,12 +22,29 @@ To install Guidrawer, follow these steps:
 To use Guidrawer as GUI on Maya, follow these steps:
 
 1. Import the module: `import guidrawer.ui`
-2. Call the show functions: `guidrawer.ui.show()`
+2. Call the show functions: `guidrawer.showUI()` or `guidrawer.ui.showUI()`
 
 
 To use Guidrawer in your scripts on Maya, follow these steps:
 
 1. Import the module: `import guidrawer.drawer as drawer`
 2. Initialize the Guidrawer object: `gd = drawer.Guidrawer()`
-3. Load Component:`gd.load_component(componentType=COMPONENT_NAME)`
-4. Call the drawing functions with args: `gd.create_guide(name, side, parentRoot, idx, **opt)`
+3. Call the drawing functions with args: `gd.create_guide(comp_type, name, side, parent_root, idx, **opt)`
+
+Any component type registered in mGear (classic / EPIC / custom via
+`MGEAR_SHIFTER_COMPONENT_PATH`) can be drawn without writing extra code.
+
+To customize the drawing process, add a preset module under
+`guidrawer/component/`. A preset is a plain module (no class required)
+that defines:
+
+```python
+NAME = "my_preset"            # display name in UI
+COMPONENT_TYPE = "control_01" # mGear component type to draw
+ORDER = 0                     # optional, sort order in UI
+
+def draw_guide(name, side, idx, parent_root, **opt):
+    ...
+```
+
+See `guidrawer/component/two_control_01.py` for a working example.

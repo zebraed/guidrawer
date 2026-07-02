@@ -4,7 +4,7 @@ import mgear
 
 STR_GUIDRAWER = """
 from guidrawer import ui
-ui.show()
+ui.showUI()
 """
 
 

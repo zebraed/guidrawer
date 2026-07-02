@@ -1,45 +1,36 @@
+"""Example preset that draws control_01 in two stacked layers."""
 from maya import cmds
-import mgear.pymaya as pm
 
-from . import AbstractComponentGuide
+from .. import shifter_bridge as bridge
+
+NAME = "two_control_01"
+COMPONENT_TYPE = "control_01"
+ORDER = 20
 
 
-class ComponentGuide(AbstractComponentGuide):
-    order = 20
-    componentType = "control_01"
-    name = "two_control_01"
-    """Example of a custom guide drawer class for two-layer control_01 component."""
+def _set_common_attr(guide_root):
+    cmds.setAttr(f"{guide_root}.joint", False)
+    cmds.setAttr(f"{guide_root}.neutralRotation", False)
+    cmds.setAttr(f"{guide_root}.ctlSize", 0.7)
 
-    @classmethod
-    def draw_guide(cls, name, comp_guide, side, idx, parent_root):
-        def _set_attr(guide):
-            cmds.setAttr(f"{guide}.joint", False)
-            cmds.setAttr(f"{guide}.neutralRotation", False)
-            cmds.setAttr(f"{guide}.ctlSize", 0.7)
 
-        cmds.select(cl=True)
+def draw_guide(name, side, idx, parent_root, **opt):
+    if not name:
+        name = bridge.get_default_name(COMPONENT_TYPE)
+    sub_name = f"{name}Sub"
 
-        comp_guide.setIndex(pm.PyNode("guide"))
+    # Main guide
+    guide_root = bridge.draw_component(parent_root, COMPONENT_TYPE)
+    _set_common_attr(guide_root)
+    cmds.setAttr(f"{guide_root}.icon", "square", type="string")
+    guide_root = bridge.rename_component(guide_root, name, side, idx)
 
-        comp_guide.draw(parent_root)
-        guide_name = cmds.ls(sl=True)[0]
-        _set_attr(guide_name)
-        cmds.setAttr(f"{guide_name}.icon", "square", type="string")
+    # Sub guide
+    sub_root = bridge.draw_component(guide_root, COMPONENT_TYPE)
+    _set_common_attr(sub_root)
+    cmds.setAttr(f"{sub_root}.icon", "diamond", type="string")
+    cmds.setAttr(f"{sub_root}.ctlSize", 0.5)
+    bridge.rename_component(sub_root, sub_name, side, idx)
 
-        comp_guide.rename(guide_name, "offset", side, idx)
-        guide_root = cmds.ls(sl=True)[0]
-        cmds.select(cl=True)
-
-        comp_guide.setIndex(pm.PyNode("guide"))
-        parent_root = guide_root
-        comp_guide.draw(parent_root)
-        offset_root_guide = cmds.ls(sl=True)[0]
-        _set_attr(offset_root_guide)
-
-        cmds.select(cl=True)
-
-        cmds.setAttr(f"{offset_root_guide}.icon", "diamond", type="string")
-        cmds.setAttr(f"{offset_root_guide}.ctlSize", 0.5)
-
-        comp_guide.rename(offset_root_guide, "subOffset", side, idx)
-        return guide_root
+    cmds.select(cl=True)
+    return guide_root

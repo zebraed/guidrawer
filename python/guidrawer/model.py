@@ -55,9 +55,6 @@ class Core(QtCore.QObject):
             print(f"__on_axis_dir_changed: > {axis_dir}")
         self.axisDirChanged.emit(axis_dir)
 
-    def isChain(self, comp_type):
-        return comp_type.startswith("chain")
-
 
 class ComboBoxModel(QtCore.QObject):
     listChanged = QtCore.Signal()

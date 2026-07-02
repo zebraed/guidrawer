@@ -4,18 +4,20 @@ __license__ = "MIT"
 __copyright__ = "Copyright 2022-2026 zebraed"
 
 
-from .ui import showUI
+def showUI(*args):
+    """Open the Guidrawer UI."""
+    from .ui import show as _show_ui
+    return _show_ui(*args)
 
 
 def Reload():
-    """
-    Reload all the modules.
-    """
+    """Reload all the modules."""
     import sys
+
     for k in list(sys.modules):
         if k.startswith(__name__):
             del sys.modules[k]
-    print(__name__ + " Reloaded.")
+    print(f"{__name__} Reloaded.")
 
 
 __all__ = ["Reload", "showUI"]
