@@ -1,19 +1,16 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
-# vim:fenc=utf-8
-from PySide2 import QtWidgets, QtCore
+from mgear.vendor.Qt import QtCore, QtWidgets
 
 
 class HorizontalLine(QtWidgets.QFrame):
     def __init__(self, *args, **kwargs):
-        super(HorizontalLine, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.setFrameShape(QtWidgets.QFrame.HLine)
         self.setFrameShadow(QtWidgets.QFrame.Sunken)
 
 
 class ComboBox(QtWidgets.QComboBox):
     def __init__(self, model, parent=None):
-        super(ComboBox, self).__init__(parent=parent)
+        super().__init__(parent=parent)
         self.__model = model
         self.__model.listChanged.connect(self.__modelChanged)
         self.currentIndexChanged.connect(self.__onCurrentIndexChanged)
@@ -53,16 +50,15 @@ class TextFieldButton(QtWidgets.QLineEdit):
     def __init__(self, button_label_text=None, parent=None):
         if button_label_text is None:
             button_label_text = "set"
-        self.button = QtWidgets.QPushButton(button_label_text,)
-        super(TextFieldButton, self).__init__(parent=parent)
-        #self.button.clicked.connect(self.__set_text)
+        self.button = QtWidgets.QPushButton(button_label_text)
+        super().__init__(parent=parent)
 
 
 class FloatSlider(QtWidgets.QWidget):
     valueChanged = QtCore.Signal(float)
 
     def __init__(self, *args, **kwargs):
-        super(FloatSlider, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         main_layout = QtWidgets.QHBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
 

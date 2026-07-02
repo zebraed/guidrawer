@@ -1,15 +1,14 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
-# vim:fenc=utf-8
-import pymel.core as pm
+from maya import cmds
+import mgear
 
-import mgear.menu
 
-from . import ui
+STR_GUIDRAWER = """
+from guidrawer import ui
+ui.show()
+"""
 
 
 def mGear_add_menu():
-    menuId = mgear.menu.menuId
-    pm.setParent(menuId, menu=True)
-    pm.menuItem(divider=True)
-    pm.menuItem(label="Guidrawer", command=ui.show)
+    cmds.setParent(mgear.menu_id, menu=True)
+    cmds.menuItem(divider=True)
+    cmds.menuItem(label="Guidrawer", command=STR_GUIDRAWER)

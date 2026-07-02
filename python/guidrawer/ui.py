@@ -1,16 +1,8 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
-# vim:fenc=utf-8
-"""
-for Multiple Drawing the mGear's Guide Component.
-"""
+"""Multiple Drawing the mGear's Guide Component."""
 import os
 
-from PySide2 import QtCore, QtWidgets
-
+from mgear.vendor.Qt import QtCore, QtWidgets
 from maya import cmds
-from pymel import core as pm
-
 from maya.app.general.mayaMixin import MayaQWidgetBaseMixin
 
 from . import const
@@ -25,7 +17,7 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
     windowName = "guidrawer_widget"
 
     def __init__(self, parent=None):
-        super(GuidrawerUI, self).__init__(parent)
+        super().__init__(parent)
         if cmds.window(self.windowName, q=True, ex=True):
             cmds.deleteUI(self.windowName)
         self.setObjectName(self.windowName)
@@ -59,11 +51,15 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
         self.axis_dir = None
         self.axis_idx = None
 
-        setting_file = os.path.join(os.getenv("MAYA_APP_DIR"),
-                                    self.windowName + "_windowPref.ini")
-        self.pyside_setting = QtCore.QSettings(setting_file,
-                                               QtCore.QSettings.IniFormat)
-        self.pyside_setting.setIniCodec("utf-8")
+        setting_file = os.path.join(
+            os.getenv("MAYA_APP_DIR"),
+            f"{self.windowName}_windowPref.ini",
+        )
+        self.pyside_setting = QtCore.QSettings(
+            setting_file, QtCore.QSettings.IniFormat
+        )
+        if hasattr(self.pyside_setting, "setIniCodec"):
+            self.pyside_setting.setIniCodec("utf-8")
 
     def __initialize(self):
         self.__main_widget = QtWidgets.QWidget()
@@ -84,7 +80,7 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
 
         self.__chain_initializer_widget = c_wdt = QtWidgets.QFrame(self)
         self.__chain_initializer_widget.hide()
-        self.chain_opt_layout = chain_opt_layout = QtWidgets.QVBoxLayout()
+        chain_opt_layout = QtWidgets.QVBoxLayout()
         chain_opt_sub_layout = QtWidgets.QHBoxLayout()
         chain_opt_sub_layout2 = QtWidgets.QHBoxLayout()
         chain_opt_layout.addLayout(chain_opt_sub_layout)
@@ -95,44 +91,39 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
         main_option_layout.addLayout(opt_layout, 1)
         main_option_layout.addLayout(parentRoot_layout, 2)
 
-        # side label combo box
-        self.__comp_cmb_widget = widget.ComboBox(self.__core.comp_model(),
-                                                 parent=opt_widget)
+        self.__comp_cmb_widget = widget.ComboBox(
+            self.__core.comp_model(), parent=opt_widget
+        )
         cmps = self.__gd.list_component_name()
         self.__comp_cmb_widget.setItems(cmps)
         self.load_guide()
 
-        # ------ 2nd section ----- #
-        # base name line edit
         self.__base_name_le_wiget = QtWidgets.QLineEdit(parent=opt_widget)
         self.__base_name_le_wiget.setPlaceholderText("Set Base Name...")
 
-        # side label combo box
-        self.__side_cmb_widget = widget.ComboBox(self.__core.side_model(),
-                                                 parent=opt_widget)
+        self.__side_cmb_widget = widget.ComboBox(
+            self.__core.side_model(), parent=opt_widget
+        )
         _sides = const.VALID_SIDE_INDEX_LIST
         self.__side_cmb_widget.setItems(_sides)
 
-        # ldx spin box
         self.__idx_spin_widget = QtWidgets.QSpinBox(parent=opt_widget)
 
-        # parent root line edit
         self.__parentRoot_le_widget = widget.TextFieldButton(
-            button_label_text="set", parent=opt_widget)
-        self.__parentRoot_le_widget.button.clicked.connect(lambda x:
-            self.__set_parent_root(cmds.ls(sl=True, fl=True)[0]))
+            button_label_text="set", parent=opt_widget
+        )
+        self.__parentRoot_le_widget.button.clicked.connect(
+            lambda x: self.__set_parent_root(cmds.ls(sl=True, fl=True)[0])
+        )
         self.__parentRoot_le_widget.setPlaceholderText("Set Parent Guide...")
-
-        # ------ 3rd section ----- #
-        # for chain type opt widget
-        #self.__chain_label = QtWidgets.QLabel("Chain Initializer", self)
 
         self.__sec_num_spin_widget = QtWidgets.QSpinBox(parent=c_wdt)
         self.__sec_num_spin_widget.setMinimum(3)
         self.__sec_num_spin_widget.setPrefix("Sections Number:")
 
-        self.__dir_axis_cmb_widget = widget.ComboBox(self.__core.axis_dir_model(),
-                                                     parent=c_wdt)
+        self.__dir_axis_cmb_widget = widget.ComboBox(
+            self.__core.axis_dir_model(), parent=c_wdt
+        )
         _axies = const.VALID_AXIS_INDEX_DICT
         self.__dir_axis_cmb_widget.setItems(_axies)
 
@@ -160,20 +151,25 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
 
         button_layout = QtWidgets.QVBoxLayout()
         self.__create_gd_btn = QtWidgets.QPushButton("Create Guide")
-        self.__create_gd_btn.clicked.connect(lambda x:
-            self.create_guide_pos(cmds.ls(os=True, fl=True)))
+        self.__create_gd_btn.clicked.connect(
+            lambda x: self.create_guide_pos(cmds.ls(sl=True, fl=True))
+        )
         button_layout.addWidget(self.__create_gd_btn)
 
         self.__mir_gd_btn = QtWidgets.QPushButton("Mirror Guide")
-        self.__mir_gd_btn.clicked.connect(lambda x:
-            self.__gd.duplicate_guide(cmds.ls(sl=True, fl=True),
-                                      symmetrize=True))
+        self.__mir_gd_btn.clicked.connect(
+            lambda x: self.__gd.duplicate_guide(
+                cmds.ls(sl=True, fl=True), symmetrize=True
+            )
+        )
         button_layout.addWidget(self.__mir_gd_btn)
 
         self.__dup_gd_btn = QtWidgets.QPushButton("Duplicate Guide")
-        self.__dup_gd_btn.clicked.connect(lambda x:
-            self.__gd.duplicate_guide(cmds.ls(sl=True, fl=True),
-                                      symmetrize=False))
+        self.__dup_gd_btn.clicked.connect(
+            lambda x: self.__gd.duplicate_guide(
+                cmds.ls(sl=True, fl=True), symmetrize=False
+            )
+        )
         button_layout.addWidget(self.__dup_gd_btn)
 
         self.__hl_frame2 = widget.HorizontalLine(self)
@@ -195,8 +191,8 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
     def __on_side_changed(self, side):
         self.current_side = side
 
-    def __on_comp_type_changed(self, compType):
-        self.current_compType = compType
+    def __on_comp_type_changed(self, comp_type):
+        self.current_compType = comp_type
         self.load_guide()
         self.__chain_widget_switch()
 
@@ -251,40 +247,45 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
     def show(self):
         self.restore()
         self.shrink()
-        super(GuidrawerUI, self).show()
+        super().show()
 
     def restore(self):
         if self.pyside_setting:
-            self.restoreGeometry(self.pyside_setting.value(
-                                 self.windowName + "-geom"))
+            self.restoreGeometry(
+                self.pyside_setting.value(f"{self.windowName}-geom")
+            )
 
     def closeEvent(self, event):
         if self.pyside_setting:
-            self.pyside_setting.setValue(self.windowName + "-geom",
-                                         self.saveGeometry())
+            self.pyside_setting.setValue(
+                f"{self.windowName}-geom", self.saveGeometry()
+            )
 
     def get_chain_opt(self):
         if self.__core.isChain(self.__get_comp_type()):
-            chain_opt = {"sections_number": self.__get_section_num(),
-                         "dir_axis": self.__get_dir_axis_idx(),
-                         "spacing": self.__get_spacing_num()
-                         }
+            chain_opt = {
+                "sections_number": self.__get_section_num(),
+                "dir_axis": self.__get_dir_axis_idx(),
+                "spacing": self.__get_spacing_num(),
+            }
         else:
             chain_opt = {}
         return chain_opt
 
     def load_guide(self):
-        self.__gd.load_component(componentType=self.__get_comp_type())
+        self.__gd.load_component(component_type=self.__get_comp_type())
 
     def create_guide(self):
         self.__set_name()
         chain_opt = self.get_chain_opt()
         self.load_guide()
-        guide_name = self.__gd.create_guide(name=self.name,
-                                            side=self.__get_side(),
-                                            idx=self.__get_idx(),
-                                            parentRoot=self.__get_parent_root(),
-                                            **chain_opt)
+        guide_name = self.__gd.create_guide(
+            name=self.name,
+            side=self.__get_side(),
+            idx=self.__get_idx(),
+            parentRoot=self.__get_parent_root(),
+            **chain_opt,
+        )
         return guide_name
 
     @decorator.undo
@@ -293,10 +294,10 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
             nodes = [nodes]
         for i_node in nodes:
             guide_name = self.create_guide()
-            pos = pm.xform(i_node, q=True, t=True, ws=True)
-            pm.xform(guide_name, t=pos, ws=True)
+            pos = cmds.xform(i_node, q=True, t=True, ws=True)
+            cmds.xform(guide_name, t=pos, ws=True)
 
 
-def show(*args):
+def showUI(*args):
     a = GuidrawerUI()
     a.show()

@@ -1,6 +1,3 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
-# vim:fenc=utf-8
 from functools import wraps
 
 from maya import cmds
@@ -12,7 +9,6 @@ def undo(func):
     @wraps(func)
     def _undofunc(*args, **kwargs):
         try:
-            # start an undo chunk
             cmds.undoInfo(ock=True)
             return func(*args, **kwargs)
         finally:
@@ -26,5 +22,7 @@ def check_comp_condition(func):
         try:
             return func(*args, **kwargs)
         except Exception:
-            raise exception.ComponentImportError("component base directory not found.")
+            raise exception.ComponentImportError(
+                "component base directory not found."
+            )
     return _wrapper

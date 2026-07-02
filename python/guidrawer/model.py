@@ -1,7 +1,4 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
-# vim:fenc=utf-8
-from PySide2 import QtCore
+from mgear.vendor.Qt import QtCore
 
 
 class Core(QtCore.QObject):
@@ -11,7 +8,7 @@ class Core(QtCore.QObject):
     axisDirChanged = QtCore.Signal(str)
 
     def __init__(self, parent=None):
-        super(Core, self).__init__(parent=parent)
+        super().__init__(parent=parent)
         self._delegate = None
 
         self._side = None
@@ -23,7 +20,6 @@ class Core(QtCore.QObject):
         self.__initialize()
 
     def __initialize(self):
-        # set models
         self._side = ComboBoxModel(self)
         self._comp_type = ComboBoxModel(self)
         self._axis_dir = ComboBoxDictModel(self)
@@ -46,24 +42,21 @@ class Core(QtCore.QObject):
 
     def __on_side_changed(self, side):
         if self._verbose:
-            print("__on_side_changed: > {}".format(side))
+            print(f"__on_side_changed: > {side}")
         self.sideChanged.emit(side)
 
-    def __on_comp_type_changed(self, compType):
+    def __on_comp_type_changed(self, comp_type):
         if self._verbose:
-            print("__on_comp_type_changed: > {}".format(compType))
-        self.compTypeChanged.emit(compType)
+            print(f"__on_comp_type_changed: > {comp_type}")
+        self.compTypeChanged.emit(comp_type)
 
     def __on_axis_dir_changed(self, axis_dir):
         if self._verbose:
-            print("__on_axis_dir_changed: > {}".format(axis_dir))
+            print(f"__on_axis_dir_changed: > {axis_dir}")
         self.axisDirChanged.emit(axis_dir)
 
-    def isChain(self, compType):
-        if compType.startswith("chain"):
-            return True
-        else:
-            return False
+    def isChain(self, comp_type):
+        return comp_type.startswith("chain")
 
 
 class ComboBoxModel(QtCore.QObject):
@@ -71,8 +64,8 @@ class ComboBoxModel(QtCore.QObject):
     currntChanged = QtCore.Signal(str)
 
     def __init__(self, parent=None):
-        super(ComboBoxModel, self).__init__(parent=parent)
-        self._items = list()
+        super().__init__(parent=parent)
+        self._items = []
         self._current = None
 
     def setItems(self, item_list):
@@ -96,9 +89,9 @@ class ComboBoxDictModel(QtCore.QObject):
     currntChanged = QtCore.Signal(str)
 
     def __init__(self, parent=None):
-        super(ComboBoxDictModel, self).__init__(parent=parent)
-        self._items = list()
-        self._data = dict()
+        super().__init__(parent=parent)
+        self._items = []
+        self._data = {}
         self._current = None
 
     def setItems(self, item_dict):

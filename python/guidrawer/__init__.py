@@ -1,13 +1,21 @@
-#! /usr/bin/ python
-# -*- coding: utf-8 -*-
-__author__  = "zebraed / ro"
-__version__ = "1.0.0"
+__author__ = "zebraed"
+__version__ = "2.0.0"
 __license__ = "MIT"
+__copyright__ = "Copyright 2022-2026 zebraed"
 
 
-def reload():
+from .ui import showUI
+
+
+def Reload():
+    """
+    Reload all the modules.
+    """
     import sys
-    for k in sys.modules.keys():
-        if k.find("guidrawer") > -1:
+    for k in list(sys.modules):
+        if k.startswith(__name__):
             del sys.modules[k]
-    print("# Reload: guidrawer")
+    print(__name__ + " Reloaded.")
+
+
+__all__ = ["Reload", "showUI"]
