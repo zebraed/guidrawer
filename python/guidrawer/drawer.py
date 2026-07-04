@@ -1,6 +1,7 @@
 from maya import cmds
 
 from . import exception
+from . import guide_align
 from . import loader
 from . import shifter_bridge as bridge
 
@@ -83,7 +84,7 @@ class Guidrawer:
             side (str): Side (C / L / R).
             parent_root (str): Parent guide node name.
             idx (int): Component index.
-            **opt: For chain types: sections_number, dir_axis, spacing.
+            **opt: Reserved for preset modules.
 
         Returns:
             str or None: New guide root name.
@@ -101,11 +102,14 @@ class Guidrawer:
                 f"Not found comp type. : {comp_type}"
             )
 
+        mgear_type = comp_type
         chain_opt = None
         if self.is_chain(comp_type):
-            chain_opt = opt
+            chain_opt = bridge.get_pre_settings_chain_opt(mgear_type)
 
-        guide_root = bridge.draw_component(parent_root, comp_type, chain_opt)
+        guide_root = bridge.draw_component(
+            parent_root, mgear_type, chain_opt
+        )
         if not guide_root:
             return None
 
@@ -113,11 +117,134 @@ class Guidrawer:
             name = bridge.get_default_name(comp_type)
         return bridge.rename_component(guide_root, name, side, idx)
 
+    def has_pre_settings(self, comp_type):
+        """Return whether the component type supports pre-settings UI."""
+        return bridge.has_component_settings(
+            self.get_mgear_comp_type(comp_type)
+        )
+
+    def open_pre_settings(self, comp_type, parent_root):
+        """Open pre-settings UI for the selected component type."""
+        parent_root = bridge.validate_guide(parent_root)
+        if not parent_root:
+            cmds.warning("Set a valid parent guide.")
+            return None
+
+        mgear_type = self.get_mgear_comp_type(comp_type)
+        return bridge.open_pre_settings(mgear_type, parent_root)
+
+    def has_pre_settings_cache(self, comp_type):
+        """Return whether pre-settings are stored for the component type."""
+        mgear_type = self.get_mgear_comp_type(comp_type)
+        return bridge.has_pre_settings_cache(mgear_type)
+
+    def reset_pre_settings(self, comp_type):
+        """Discard stored pre-settings for the component type."""
+        mgear_type = self.get_mgear_comp_type(comp_type)
+        return bridge.reset_pre_settings(mgear_type)
+
+    def apply_pre_settings(self, comp_type, guide_root):
+        """Copy pre-settings onto guide_root after creation."""
+        if not guide_root:
+            return False
+
+        mgear_type = self.get_mgear_comp_type(comp_type)
+        return bridge.apply_pre_settings(mgear_type, guide_root)
+
     def duplicate_guide(self, nodes, symmetrize=False):
         """Find component root from selected nodes and duplicate."""
+        if not nodes:
+            cmds.warning("Nothing selected.")
+            return
         for node in nodes:
             root = bridge.get_component_root(node)
             if root:
                 bridge.duplicate_component(root, symmetrize)
             else:
                 cmds.warning("Can not got guide root.")
+
+    def _list_guide_roots(self, nodes):
+        roots = []
+        for node in nodes:
+            root = bridge.get_component_root(node)
+            if not root:
+                cmds.warning("Can not got guide root.")
+                continue
+            if root not in roots:
+                roots.append(root)
+        return roots
+
+    def delete_guide(self, nodes):
+        """Find component root from selected nodes and delete."""
+        if not nodes:
+            cmds.warning("Nothing selected.")
+            return
+        for root in self._list_guide_roots(nodes):
+            if cmds.objExists(root):
+                bridge.delete_component(root)
+
+    def delete_guide_keep_children(self, nodes):
+        """Delete component roots and keep nested child components."""
+        if not nodes:
+            cmds.warning("Nothing selected.")
+            return
+        for root in self._list_guide_roots(nodes):
+            if cmds.objExists(root):
+                bridge.delete_component_keep_children(root)
+
+    def open_settings(self, nodes):
+        """Open the mGear settings UI for the first selected component."""
+        for node in nodes:
+            root = bridge.get_component_root(node)
+            if root:
+                bridge.open_component_settings(root)
+                return
+        cmds.warning("Can not got guide root.")
+
+    def extract_controls(self):
+        """Extract selected mGear controls to controllers_org buffers."""
+        bridge.extract_controls()
+
+    def vanilla_build_guide(self):
+        """Build rig from guide without pre/post custom steps."""
+        bridge.vanilla_build_guide()
+
+    def fit_to_pos(self):
+        guide_align.fit_to_pos()
+
+    def align_mid_pos(self):
+        guide_align.align_mid_pos()
+
+    def fit_nearest(self):
+        guide_align.fit_nearest()
+
+    def align_rot(self):
+        guide_align.align_rot()
+
+    def align_mid_rot(self):
+        guide_align.align_mid_rot()
+
+    def align_rot_nearest(self):
+        guide_align.align_rot_nearest()
+
+    def aim_x(self):
+        guide_align.aim_x()
+
+    def aim_y(self):
+        guide_align.aim_y()
+
+    def aim_z(self):
+        guide_align.aim_z()
+
+    def rotate_axis(self, axis, degrees):
+        guide_align.rotate_selected(axis, degrees)
+
+    def get_preserve_children(self):
+        """Return Preserve Children state for Move/Rotate/Scale tools."""
+        return cmds.manipMoveContext("Move", q=True, pcp=True)
+
+    def set_preserve_children(self, enabled):
+        """Set Preserve Children on Move, Rotate, and Scale manip contexts."""
+        cmds.manipMoveContext("Move", e=True, pcp=enabled)
+        cmds.manipRotateContext("Rotate", e=True, pcp=enabled)
+        cmds.manipScaleContext("Scale", e=True, pcp=enabled)

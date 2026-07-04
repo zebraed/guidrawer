@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg width="800px" height="800px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Guidrawer G Guide Icon</title>
+  <g stroke="#DF6E41" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- bars: 5 -->
+    <path d="M7 5H17"/>
+    <path d="M5 7V17"/>
+    <path d="M7 19H17"/>
+    <path d="M19 17V15"/>
+    <path d="M17 13H14"/>
+
+    <!-- nodes: 6 -->
+    <circle cx="5" cy="5" r="2"/>
+    <circle cx="19" cy="5" r="2"/>
+    <circle cx="5" cy="19" r="2"/>
+    <circle cx="19" cy="19" r="2"/>
+    <circle cx="19" cy="13" r="2"/>
+    <circle cx="12" cy="13" r="2"/>
+  </g>
+</svg>

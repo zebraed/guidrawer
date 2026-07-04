@@ -1,7 +1,7 @@
 """Multiple Drawing the mGear's Guide Component."""
 import os
 
-from mgear.vendor.Qt import QtCore, QtWidgets
+from mgear.vendor.Qt import QtCore, QtGui, QtWidgets
 from maya import cmds
 from maya.app.general.mayaMixin import MayaQWidgetBaseMixin
 
@@ -9,10 +9,23 @@ from . import const
 from . import decorator
 from . import drawer
 from . import model
+from . import shifter_bridge as bridge
 from . import widget
 
 
+ICON_PATH = os.path.join(
+    os.path.abspath(os.path.dirname(__file__)),
+    "icons",
+    "guidrawer_icon.svg",
+)
+
+_SOLO_MOVE_ON_STYLE = "QPushButton { border: 2px solid #FFD700; }"
+
+
 class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
+    """
+    Guidrawer UI class
+    """
     title = "Guidrawer"
     windowName = "guidrawer_widget"
 
@@ -20,8 +33,11 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
         super().__init__(parent)
         if cmds.window(self.windowName, q=True, ex=True):
             cmds.deleteUI(self.windowName)
+
         self.setObjectName(self.windowName)
         self.setWindowTitle(self.title)
+        if os.path.isfile(ICON_PATH):
+            self.setWindowIcon(QtGui.QIcon(ICON_PATH))
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setAttribute(QtCore.Qt.WA_AlwaysShowToolTips)
 
@@ -33,25 +49,34 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
         self.__base_name_le_wiget = None
         self.__side_cmb_widget = None
         self.__idx_spin_widget = None
-        self.__parentRoot_le_widget = None
-        self.__chain_initializer_widget = None
-        self.__sec_num_spin_widget = None
-        self.__dir_axis_cmb_widget = None
-        self.__spacing_float_widget = None
-
+        self.__parent_root_le_widget = None
+        self.__pre_settings_btn = None
+        self.__reset_pre_settings_btn = None
         self.__create_gd_btn = None
+        self.__settings_btn = None
         self.__mir_gd_btn = None
         self.__dup_gd_btn = None
+        self.__extr_ctrl_btn = None
+        self.__fit_to_pos_btn = None
+        self.__align_mid_pos_btn = None
+        self.__fit_nearest_btn = None
+        self.__align_rot_btn = None
+        self.__align_mid_rot_btn = None
+        self.__align_rot_nearest_btn = None
+        self.__aim_x_btn = None
+        self.__aim_y_btn = None
+        self.__aim_z_btn = None
+        self.__rot_x90_btn = None
+        self.__rot_y90_btn = None
+        self.__rot_z90_btn = None
+        self.__solo_move_frame = None
+        self.__solo_move_btn = None
+        self.__solo_move_size_locked = False
+        self.__del_gd_btn = None
+        self.__del_keep_child_gd_btn = None
+        self.__vanilla_build_btn = None
 
         self.__idx_updating = False
-
-        self.__initialize()
-
-        self.name = None
-        self.current_side = None
-        self.current_compType = None
-        self.axis_dir = None
-        self.axis_idx = None
 
         setting_file = os.path.join(
             os.getenv("MAYA_APP_DIR"),
@@ -63,6 +88,35 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
         if hasattr(self.pyside_setting, "setIniCodec"):
             self.pyside_setting.setIniCodec("utf-8")
 
+        self.__initialize()
+
+        self.name = None
+        self.current_side = None
+        self.current_comp_type = None
+
+    def __comp_type_setting_key(self):
+        return f"{self.windowName}-comp_type"
+
+    def __save_comp_type(self, comp_type):
+        if self.pyside_setting and comp_type:
+            self.pyside_setting.setValue(
+                self.__comp_type_setting_key(), comp_type
+            )
+
+    def __restore_comp_type(self):
+        if not self.pyside_setting:
+            return
+
+        saved = self.pyside_setting.value(self.__comp_type_setting_key())
+        if not saved:
+            return
+
+        items = self.__core.comp_model().items()
+        if saved not in items:
+            return
+
+        self.__comp_cmb_widget.setCurrentIndex(items.index(saved))
+
     def __initialize(self):
         self.__main_widget = QtWidgets.QWidget()
         self.setCentralWidget(self.__main_widget)
@@ -70,34 +124,28 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
         opt_widget = QtWidgets.QWidget(parent=self.__main_widget)
         main_option_layout = QtWidgets.QVBoxLayout(opt_widget)
         main_option_layout.setContentsMargins(0, 0, 0, 0)
+        main_option_layout.setAlignment(QtCore.Qt.AlignTop)
 
         contents_widget = QtWidgets.QWidget(parent=self.__main_widget)
         contents_layout = QtWidgets.QVBoxLayout(contents_widget)
+        contents_layout.setAlignment(QtCore.Qt.AlignTop)
+        contents_layout.setContentsMargins(0, 0, 0, 0)
 
         comp_layout = QtWidgets.QHBoxLayout()
-        main_option_layout.addLayout(comp_layout, 0)
+        main_option_layout.addLayout(comp_layout)
 
         opt_layout = QtWidgets.QHBoxLayout()
         parentRoot_layout = QtWidgets.QHBoxLayout()
-
-        self.__chain_initializer_widget = c_wdt = QtWidgets.QFrame(self)
-        self.__chain_initializer_widget.hide()
-        chain_opt_layout = QtWidgets.QVBoxLayout()
-        chain_opt_sub_layout = QtWidgets.QHBoxLayout()
-        chain_opt_sub_layout2 = QtWidgets.QHBoxLayout()
-        chain_opt_layout.addLayout(chain_opt_sub_layout)
-        chain_opt_layout.addLayout(chain_opt_sub_layout2)
-
-        self.__chain_initializer_widget.setLayout(chain_opt_layout)
-
-        main_option_layout.addLayout(opt_layout, 1)
-        main_option_layout.addLayout(parentRoot_layout, 2)
 
         self.__comp_cmb_widget = widget.ComboBox(
             self.__core.comp_model(), parent=opt_widget
         )
         cmps = self.__gd.list_component_name()
         self.__comp_cmb_widget.setItems(cmps)
+        self.__comp_cmb_widget.currentIndexChanged.connect(
+            self.__update_pre_settings_btn
+        )
+        self.__restore_comp_type()
 
         self.__base_name_le_wiget = QtWidgets.QLineEdit(parent=opt_widget)
         self.__base_name_le_wiget.setPlaceholderText("Set Base Name...")
@@ -116,31 +164,32 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
             self.__refresh_component_index
         )
 
-        self.__parentRoot_le_widget = widget.TextFieldButton(
-            button_label_text="set", parent=opt_widget
+        self.__parent_root_le_widget = widget.TextFieldButton(parent=opt_widget)
+        self.__parent_root_le_widget.button.setText("")
+        self.__parent_root_le_widget.button.setIcon(
+            QtGui.QIcon(":/dopeSheetSelect.png")
         )
-        self.__parentRoot_le_widget.editingFinished.connect(
+        self.__parent_root_le_widget.editingFinished.connect(
             self.__refresh_component_index
         )
-        self.__parentRoot_le_widget.button.clicked.connect(
-            lambda x: self.__set_parent_root(cmds.ls(sl=True, fl=True)[0])
+        self.__parent_root_le_widget.button.clicked.connect(
+            lambda x: self.__set_parent_root_from_selection()
         )
-        self.__parentRoot_le_widget.setPlaceholderText("Set Parent Guide...")
+        self.__parent_root_le_widget.setPlaceholderText("Set Parent Guide...")
 
-        self.__sec_num_spin_widget = QtWidgets.QSpinBox(parent=c_wdt)
-        self.__sec_num_spin_widget.setMinimum(3)
-        self.__sec_num_spin_widget.setPrefix("Sections Number:")
-
-        self.__dir_axis_cmb_widget = widget.ComboBox(
-            self.__core.axis_dir_model(), parent=c_wdt
+        self.__pre_settings_btn = QtWidgets.QPushButton("", parent=opt_widget)
+        self.__pre_settings_btn.setIcon(QtGui.QIcon(":/RS_settings_pop.png"))
+        self.__pre_settings_btn.setToolTip("Pre Settings...")
+        self.__pre_settings_btn.clicked.connect(
+            lambda x: self.__open_pre_settings()
         )
-        _axies = const.VALID_AXIS_INDEX_DICT
-        self.__dir_axis_cmb_widget.setItems(_axies)
 
-        self.__spacing_label = QtWidgets.QLabel("Spacing:", self)
-        self.__spacing_float_widget = widget.FloatSlider(parent=c_wdt)
-        self.__spacing_float_widget.setRange(0.0001, 20.0000)
-        self.__spacing_float_widget.setValue(1)
+        self.__reset_pre_settings_btn = QtWidgets.QPushButton("", parent=opt_widget)
+        self.__reset_pre_settings_btn.setIcon(QtGui.QIcon(":/deletePreset.png"))
+        self.__reset_pre_settings_btn.setToolTip("Reset Settings")
+        self.__reset_pre_settings_btn.clicked.connect(
+            lambda x: self.__reset_pre_settings()
+        )
 
         self.__hl_frame1 = widget.HorizontalLine(self)
 
@@ -148,82 +197,245 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
         opt_layout.addWidget(self.__base_name_le_wiget)
         opt_layout.addWidget(self.__side_cmb_widget)
         opt_layout.addWidget(self.__idx_spin_widget)
-        parentRoot_layout.addWidget(self.__parentRoot_le_widget.button)
-        parentRoot_layout.addWidget(self.__parentRoot_le_widget)
+        parentRoot_layout.addWidget(self.__parent_root_le_widget.button)
+        parentRoot_layout.addWidget(self.__parent_root_le_widget, 1)
+        parentRoot_layout.addWidget(self.__pre_settings_btn)
+        parentRoot_layout.addWidget(self.__reset_pre_settings_btn)
 
-        chain_opt_sub_layout.addWidget(self.__sec_num_spin_widget)
-        chain_opt_sub_layout.addWidget(self.__dir_axis_cmb_widget)
-        chain_opt_sub_layout2.addWidget(self.__spacing_label)
-        chain_opt_sub_layout2.addWidget(self.__spacing_float_widget)
+        main_option_layout.addLayout(opt_layout)
+        main_option_layout.addLayout(parentRoot_layout)
 
-        main_option_layout.addWidget(self.__chain_initializer_widget)
-        main_option_layout.addWidget(self.__hl_frame1)
-
-        button_layout = QtWidgets.QVBoxLayout()
-        self.__create_gd_btn = QtWidgets.QPushButton("Create Guide")
+        self.__create_gd_btn = QtWidgets.QPushButton("Create", parent=opt_widget)
+        self.__create_gd_btn.setIcon(QtGui.QIcon(":/createBin.png"))
         self.__create_gd_btn.clicked.connect(
             lambda x: self.create_guide_pos(cmds.ls(sl=True, fl=True))
         )
-        button_layout.addWidget(self.__create_gd_btn)
 
-        self.__mir_gd_btn = QtWidgets.QPushButton("Mirror Guide")
-        self.__mir_gd_btn.clicked.connect(
-            lambda x: self.__duplicate_guide(symmetrize=True)
+        self.__settings_btn = QtWidgets.QPushButton("Settings", parent=opt_widget)
+        self.__settings_btn.setIcon(QtGui.QIcon(":/advancedSettings.png"))
+        self.__settings_btn.clicked.connect(
+            lambda x: self.__open_settings()
         )
-        button_layout.addWidget(self.__mir_gd_btn)
 
-        self.__dup_gd_btn = QtWidgets.QPushButton("Duplicate Guide")
+        main_option_layout.addWidget(self.__create_gd_btn)
+        main_option_layout.addWidget(self.__settings_btn)
+        main_option_layout.addWidget(self.__hl_frame1)
+
+        button_layout = QtWidgets.QGridLayout()
+        button_layout.setSizeConstraint(
+            QtWidgets.QLayout.SetFixedSize
+        )
+        self.__dup_gd_btn = QtWidgets.QPushButton("Duplicate")
+        self.__dup_gd_btn.setIcon(QtGui.QIcon(":/teCompDup.png"))
         self.__dup_gd_btn.clicked.connect(
             lambda x: self.__duplicate_guide(symmetrize=False)
         )
-        button_layout.addWidget(self.__dup_gd_btn)
+        button_layout.addWidget(self.__dup_gd_btn, 0, 0)
+
+        self.__mir_gd_btn = QtWidgets.QPushButton("Mirror")
+        self.__mir_gd_btn.setIcon(QtGui.QIcon(":/polySymmetrizeUV.png"))
+        self.__mir_gd_btn.clicked.connect(
+            lambda x: self.__duplicate_guide(symmetrize=True)
+        )
+        button_layout.addWidget(self.__mir_gd_btn, 0, 1)
+
+        self.__extr_ctrl_btn = QtWidgets.QPushButton("Extr. Ctrl")
+        self.__extr_ctrl_btn.setIcon(QtGui.QIcon(":/extend.png"))
+        self.__extr_ctrl_btn.clicked.connect(
+            lambda x: self.__extract_controls()
+        )
+        button_layout.addWidget(self.__extr_ctrl_btn, 0, 2)
+
+        self.__hl_frame_dup = widget.HorizontalLine(self)
+        button_layout.addWidget(self.__hl_frame_dup, 1, 0, 1, 3)
+
+        self.__fit_to_pos_btn = QtWidgets.QPushButton("Fit to Pos")
+        self.__fit_to_pos_btn.setIcon(QtGui.QIcon(":/pivotPos.png"))
+        self.__fit_to_pos_btn.clicked.connect(
+            lambda x: self.__fit_to_pos()
+        )
+        button_layout.addWidget(self.__fit_to_pos_btn, 2, 0)
+
+        self.__align_mid_pos_btn = QtWidgets.QPushButton("Mid Pos")
+        self.__align_mid_pos_btn.setIcon(QtGui.QIcon(":/UVAlignMiddleV.png"))
+        self.__align_mid_pos_btn.clicked.connect(
+            lambda x: self.__align_mid_pos()
+        )
+        button_layout.addWidget(self.__align_mid_pos_btn, 2, 1)
+
+        self.__fit_nearest_btn = QtWidgets.QPushButton("Fit Nearest")
+        self.__fit_nearest_btn.setIcon(QtGui.QIcon(":/pivotResetPos.png"))
+        self.__fit_nearest_btn.clicked.connect(
+            lambda x: self.__fit_nearest()
+        )
+        button_layout.addWidget(self.__fit_nearest_btn, 2, 2)
+
+        self.__align_rot_btn = QtWidgets.QPushButton("Align Rot")
+        self.__align_rot_btn.setIcon(QtGui.QIcon(":/pivotAlign.png"))
+        self.__align_rot_btn.clicked.connect(
+            lambda x: self.__align_rot()
+        )
+        button_layout.addWidget(self.__align_rot_btn, 3, 0)
+
+        self.__align_mid_rot_btn = QtWidgets.QPushButton("Mid Rot")
+        self.__align_mid_rot_btn.setIcon(QtGui.QIcon(":/polyAlignUVLinear.png"))
+        self.__align_mid_rot_btn.clicked.connect(
+            lambda x: self.__align_mid_rot()
+        )
+        button_layout.addWidget(self.__align_mid_rot_btn, 3, 1)
+
+        self.__align_rot_nearest_btn = QtWidgets.QPushButton("Rot Nearest")
+        self.__align_rot_nearest_btn.setIcon(QtGui.QIcon(":/pivotResetOri.png"))
+        self.__align_rot_nearest_btn.clicked.connect(
+            lambda x: self.__align_rot_nearest()
+        )
+        button_layout.addWidget(self.__align_rot_nearest_btn, 3, 2)
+
+        aim_icon = QtGui.QIcon(":/poleVectorConstraint.png")
+
+        self.__aim_x_btn = QtWidgets.QPushButton("Aim X")
+        self.__aim_x_btn.setIcon(aim_icon)
+        self.__aim_x_btn.clicked.connect(
+            lambda x: self.__aim_x()
+        )
+        button_layout.addWidget(self.__aim_x_btn, 4, 0)
+
+        self.__aim_y_btn = QtWidgets.QPushButton("Aim Y")
+        self.__aim_y_btn.setIcon(aim_icon)
+        self.__aim_y_btn.clicked.connect(
+            lambda x: self.__aim_y()
+        )
+        button_layout.addWidget(self.__aim_y_btn, 4, 1)
+
+        self.__aim_z_btn = QtWidgets.QPushButton("Aim Z")
+        self.__aim_z_btn.setIcon(aim_icon)
+        self.__aim_z_btn.clicked.connect(
+            lambda x: self.__aim_z()
+        )
+        button_layout.addWidget(self.__aim_z_btn, 4, 2)
+
+        rotate_icon = QtGui.QIcon(":/rotate_M.png")
+
+        self.__rot_x90_btn = QtWidgets.QPushButton("X 90")
+        self.__rot_x90_btn.setIcon(rotate_icon)
+        self.__wire_rotate_button(self.__rot_x90_btn, "x")
+        button_layout.addWidget(self.__rot_x90_btn, 5, 0)
+
+        self.__rot_y90_btn = QtWidgets.QPushButton("Y 90")
+        self.__rot_y90_btn.setIcon(rotate_icon)
+        self.__wire_rotate_button(self.__rot_y90_btn, "y")
+        button_layout.addWidget(self.__rot_y90_btn, 5, 1)
+
+        self.__rot_z90_btn = QtWidgets.QPushButton("Z 90")
+        self.__rot_z90_btn.setIcon(rotate_icon)
+        self.__wire_rotate_button(self.__rot_z90_btn, "z")
+        button_layout.addWidget(self.__rot_z90_btn, 5, 2)
+
+        self.__solo_move_frame = QtWidgets.QFrame(contents_widget)
+        solo_move_layout = QtWidgets.QHBoxLayout(self.__solo_move_frame)
+        solo_move_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.__solo_move_btn = QtWidgets.QPushButton("Solo Move")
+        self.__solo_move_btn.setIcon(QtGui.QIcon(":/move_M.png"))
+        self.__solo_move_btn.setCheckable(True)
+        self.__solo_move_btn.toggled.connect(self.__on_solo_move_toggled)
+        solo_move_layout.addWidget(self.__solo_move_btn)
+
+        for col in range(3):
+            button_layout.setColumnStretch(col, 1)
 
         self.__hl_frame2 = widget.HorizontalLine(self)
+
+        self.__del_gd_btn = QtWidgets.QPushButton("Delete")
+        self.__del_gd_btn.setIcon(QtGui.QIcon(":/deleteRenderPass.png"))
+        self.__del_gd_btn.clicked.connect(
+            lambda x: self.__delete_guide()
+        )
+
+        self.__del_keep_child_gd_btn = QtWidgets.QPushButton("Delete Keep Child")
+        self.__del_keep_child_gd_btn.setIcon(
+            QtGui.QIcon(":/deletePCM.png")
+        )
+        self.__del_keep_child_gd_btn.clicked.connect(
+            lambda x: self.__delete_guide_keep_children()
+        )
+
+        delete_layout = QtWidgets.QHBoxLayout()
+        delete_layout.addWidget(self.__del_gd_btn)
+        delete_layout.addWidget(self.__del_keep_child_gd_btn)
+
+        self.__hl_frame3 = widget.HorizontalLine(self)
+
+        self.__vanilla_build_btn = QtWidgets.QPushButton("Vanilla Build")
+        self.__vanilla_build_btn.setIcon(QtGui.QIcon(":/HIKcreateCustRig.png"))
+        self.__vanilla_build_btn.clicked.connect(
+            lambda x: self.__vanilla_build_guide()
+        )
 
         central_layout = QtWidgets.QVBoxLayout(self.__main_widget)
         central_layout.setAlignment(QtCore.Qt.AlignTop)
         central_layout.setContentsMargins(10, 10, 10, 10)
         central_layout.setSpacing(5)
         central_layout.addWidget(opt_widget, 0)
-        central_layout.addWidget(contents_widget, 1)
-        central_layout.addWidget(self.__hl_frame2, 2)
+        central_layout.addWidget(contents_widget, 0)
+        central_layout.addWidget(self.__hl_frame2, 0)
+        central_layout.addLayout(delete_layout, 0)
+        central_layout.addWidget(self.__hl_frame3, 0)
+        central_layout.addWidget(self.__vanilla_build_btn, 0)
 
         contents_layout.addLayout(button_layout)
+        contents_layout.addWidget(self.__solo_move_frame)
 
         self.__core.sideChanged.connect(self.__on_side_changed)
         self.__core.compTypeChanged.connect(self.__on_comp_type_changed)
-        self.__core.axisDirChanged.connect(self.__on_axis_dir_changed)
 
-        # Update chain option visibility for the initially selected component
-        self.current_compType = self.__get_comp_type()
-        self.__chain_widget_switch()
+        self.current_comp_type = self.__get_comp_type()
         self.__refresh_component_index()
+        self.__sync_solo_move_button()
+        self.__update_pre_settings_btn()
+
+    def __update_pre_settings_btn(self):
+        if not self.__pre_settings_btn:
+            return
+        has_settings = self.__gd.has_pre_settings(self.__get_comp_type())
+        self.__pre_settings_btn.setEnabled(has_settings)
+        if not self.__reset_pre_settings_btn:
+            return
+        has_cache = self.__gd.has_pre_settings_cache(self.__get_comp_type())
+        self.__reset_pre_settings_btn.setEnabled(
+            has_settings and has_cache
+        )
 
     def __on_side_changed(self, side):
         self.current_side = side
         self.__refresh_component_index()
 
     def __on_comp_type_changed(self, comp_type):
-        self.current_compType = comp_type
-        self.__chain_widget_switch()
+        self.current_comp_type = comp_type
+        self.__save_comp_type(comp_type)
         self.__refresh_component_index()
-
-    def __on_axis_dir_changed(self, axis_dir):
-        self.axis_dir = axis_dir
-        self.axis_idx = self.__core.axis_dir_model().idxFromItem(axis_dir)
-
-    def __chain_widget_switch(self):
-        if self.__gd.is_chain(self.current_compType):
-            self.__chain_initializer_widget.show()
-        else:
-            self.__chain_initializer_widget.hide()
-            QtCore.QTimer.singleShot(0, self.shrink)
+        self.__update_pre_settings_btn()
 
     def __set_name(self):
         self.name = self.__get_base_name()
 
+    def __set_parent_root_from_selection(self):
+        selection = cmds.ls(sl=True, fl=True)
+        if not selection:
+            cmds.warning("Nothing selected.")
+            return
+        self.__set_parent_root(selection[0])
+
     def __set_parent_root(self, node=None):
-        self.__parentRoot_le_widget.setText(node)
+        if not node:
+            cmds.warning("Nothing selected.")
+            return
+
+        validated = bridge.validate_guide(node)
+        if not validated:
+            return
+
+        self.__parent_root_le_widget.setText(validated)
         self.__refresh_component_index()
 
     def __set_idx(self, value):
@@ -278,37 +490,56 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
         return self.__idx_spin_widget.value()
 
     def __get_parent_root(self):
-        return self.__parentRoot_le_widget.text()
+        return self.__parent_root_le_widget.text()
 
     def __get_comp_type(self):
         return self.__comp_cmb_widget.currentText()
 
-    def __get_section_num(self):
-        return self.__sec_num_spin_widget.value()
-
-    def __get_dir_axis(self):
-        return self.__dir_axis_cmb_widget.currentText()
-
-    def __get_dir_axis_idx(self):
-        return self.__core.axis_dir_model().idxFromItem(self.__get_dir_axis())
-
-    def __get_spacing_num(self):
-        return self.__spacing_float_widget.value()
-
     def shrink(self):
-        self.resize(QtCore.QSize())
+        central = self.centralWidget()
+        if central and central.layout():
+            central.layout().activate()
         self.adjustSize()
+        width = self.width()
+        if width <= 0:
+            width = self.sizeHint().width()
+        height = self.maximumHeight()
+        if self.minimumHeight() == self.maximumHeight() and height > 0:
+            self.resize(width, height)
+            return
+        self.resize(width, self.sizeHint().height())
+
+    def __lock_window_height(self):
+        central = self.centralWidget()
+        if central and central.layout():
+            central.layout().activate()
+        self.adjustSize()
+        height = self.sizeHint().height()
+        self.setMinimumHeight(height)
+        self.setMaximumHeight(height)
+        width = self.width()
+        if width <= 0:
+            width = self.sizeHint().width()
+        self.resize(width, height)
+
+    def __finalize_window_layout(self):
+        self.__lock_solo_move_button_size()
+        self.__lock_window_height()
 
     def show(self):
         self.restore()
         self.__refresh_component_index()
+        self.__sync_solo_move_button()
         self.shrink()
         super().show()
+        QtCore.QTimer.singleShot(0, self.__finalize_window_layout)
 
     def changeEvent(self, event):
         super().changeEvent(event)
         if event.type() == QtCore.QEvent.WindowActivate:
             self.__refresh_component_index()
+            self.__sync_solo_move_button()
+            self.__update_pre_settings_btn()
 
     def restore(self):
         if self.pyside_setting:
@@ -318,32 +549,25 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
 
     def closeEvent(self, event):
         if self.pyside_setting:
+            self.__save_comp_type(self.__get_comp_type())
             self.pyside_setting.setValue(
                 f"{self.windowName}-geom", self.saveGeometry()
             )
 
-    def get_chain_opt(self):
-        if self.__gd.is_chain(self.__get_comp_type()):
-            chain_opt = {
-                "sections_number": self.__get_section_num(),
-                "dir_axis": self.__get_dir_axis_idx(),
-                "spacing": self.__get_spacing_num(),
-            }
-        else:
-            chain_opt = {}
-        return chain_opt
-
     def create_guide(self):
         self.__set_name()
-        chain_opt = self.get_chain_opt()
         guide_name = self.__gd.create_guide(
             comp_type=self.__get_comp_type(),
             name=self.name,
             side=self.__get_side(),
             idx=self.__get_idx(),
             parent_root=self.__get_parent_root(),
-            **chain_opt,
         )
+        if guide_name:
+            self.__gd.apply_pre_settings(
+                self.__get_comp_type(),
+                guide_name,
+            )
         self.__sync_idx_from_created_guide(guide_name)
         return guide_name
 
@@ -351,6 +575,9 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
     def create_guide_pos(self, nodes):
         if not isinstance(nodes, list):
             nodes = [nodes]
+        if not nodes:
+            cmds.warning("Nothing selected.")
+            return
         for i_node in nodes:
             guide_name = self.create_guide()
             if not guide_name:
@@ -358,9 +585,138 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
             pos = cmds.xform(i_node, q=True, t=True, ws=True)
             cmds.xform(guide_name, t=pos, ws=True)
 
+    @decorator.undo
     def __duplicate_guide(self, symmetrize=False):
         self.__gd.duplicate_guide(cmds.ls(sl=True, fl=True), symmetrize)
         self.__refresh_component_index()
+
+    @decorator.undo
+    def __delete_guide(self):
+        self.__gd.delete_guide(cmds.ls(sl=True, fl=True))
+        self.__refresh_component_index()
+
+    @decorator.undo
+    def __delete_guide_keep_children(self):
+        self.__gd.delete_guide_keep_children(cmds.ls(sl=True, fl=True))
+        self.__refresh_component_index()
+
+    def __open_settings(self):
+        self.__gd.open_settings(cmds.ls(sl=True, fl=True))
+
+    def __open_pre_settings(self):
+        self.__gd.open_pre_settings(
+            comp_type=self.__get_comp_type(),
+            parent_root=self.__get_parent_root(),
+        )
+        self.__update_pre_settings_btn()
+
+    def __reset_pre_settings(self):
+        reset = self.__gd.reset_pre_settings(
+            comp_type=self.__get_comp_type(),
+        )
+        if not reset:
+            cmds.warning("No pre-settings to reset.")
+            return
+        self.__update_pre_settings_btn()
+
+    @decorator.undo
+    def __extract_controls(self):
+        self.__gd.extract_controls()
+
+    @decorator.undo
+    def __vanilla_build_guide(self):
+        self.__gd.vanilla_build_guide()
+
+    @decorator.undo
+    def __fit_to_pos(self):
+        self.__gd.fit_to_pos()
+
+    @decorator.undo
+    def __align_mid_pos(self):
+        self.__gd.align_mid_pos()
+
+    @decorator.undo
+    def __fit_nearest(self):
+        self.__gd.fit_nearest()
+
+    @decorator.undo
+    def __align_rot(self):
+        self.__gd.align_rot()
+
+    @decorator.undo
+    def __align_mid_rot(self):
+        self.__gd.align_mid_rot()
+
+    @decorator.undo
+    def __align_rot_nearest(self):
+        self.__gd.align_rot_nearest()
+
+    @decorator.undo
+    def __aim_x(self):
+        self.__gd.aim_x()
+
+    @decorator.undo
+    def __aim_y(self):
+        self.__gd.aim_y()
+
+    @decorator.undo
+    def __aim_z(self):
+        self.__gd.aim_z()
+
+    def __on_solo_move_toggled(self, checked):
+        self.__gd.set_preserve_children(checked)
+        self.__update_solo_move_button_style(checked)
+
+    def __update_solo_move_button_style(self, enabled):
+        if enabled:
+            self.__solo_move_btn.setStyleSheet(_SOLO_MOVE_ON_STYLE)
+        else:
+            self.__solo_move_btn.setStyleSheet("")
+
+    def __lock_solo_move_button_size(self):
+        btn = self.__solo_move_btn
+        if not btn or self.__solo_move_size_locked:
+            return
+
+        enabled = btn.isChecked()
+
+        btn.setStyleSheet(_SOLO_MOVE_ON_STYLE)
+        btn.style().unpolish(btn)
+        btn.style().polish(btn)
+        on_size = btn.sizeHint()
+
+        btn.setStyleSheet("")
+        btn.style().unpolish(btn)
+        btn.style().polish(btn)
+        off_size = btn.sizeHint()
+
+        height = max(on_size.height(), off_size.height())
+        btn.setFixedHeight(height)
+
+        self.__update_solo_move_button_style(enabled)
+        self.__solo_move_size_locked = True
+
+    def __sync_solo_move_button(self):
+        if not self.__solo_move_btn:
+            return
+        enabled = self.__gd.get_preserve_children()
+        self.__solo_move_btn.blockSignals(True)
+        self.__solo_move_btn.setChecked(enabled)
+        self.__update_solo_move_button_style(enabled)
+        self.__solo_move_btn.blockSignals(False)
+
+    def __wire_rotate_button(self, btn, axis):
+        btn.clicked.connect(
+            lambda x: self.__rotate_axis(axis, 90.0)
+        )
+        btn.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        btn.customContextMenuRequested.connect(
+            lambda pos: self.__rotate_axis(axis, -90.0)
+        )
+
+    @decorator.undo
+    def __rotate_axis(self, axis, degrees):
+        self.__gd.rotate_axis(axis, degrees)
 
 
 def show(*args):
