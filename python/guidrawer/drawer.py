@@ -209,6 +209,14 @@ class Guidrawer:
         """Build rig from guide without pre/post custom steps."""
         bridge.vanilla_build_guide()
 
+    def has_full_build_steps(self):
+        """Return whether the scene guide has pre/post custom scripts."""
+        return bridge.has_full_build_steps()
+
+    def full_build_guide(self):
+        """Build rig from guide with pre/post custom steps enabled."""
+        bridge.full_build_guide()
+
     def fit_to_pos(self):
         guide_align.fit_to_pos()
 

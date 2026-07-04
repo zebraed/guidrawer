@@ -712,6 +712,35 @@ def extract_controls():
         cmds.warning(str(exc))
 
 
+def _has_custom_step_scripts(step_value):
+    text = str(step_value).strip()
+    if not text:
+        return False
+    for entry in text.split(","):
+        if entry.strip():
+            return True
+    return False
+
+
+def has_full_build_steps():
+    """Return whether guide has both pre and post custom scripts configured."""
+    if not cmds.objExists("guide"):
+        return False
+
+    guide = pm.PyNode("guide")
+    if not guide.hasAttr("ismodel"):
+        return False
+    if not guide.hasAttr("preCustomStep") or not guide.hasAttr("postCustomStep"):
+        return False
+
+    pre_steps = guide.attr("preCustomStep").get()
+    post_steps = guide.attr("postCustomStep").get()
+    return (
+        _has_custom_step_scripts(pre_steps)
+        and _has_custom_step_scripts(post_steps)
+    )
+
+
 def vanilla_build_guide():
     """Build rig from guide with pre/post custom steps disabled.
 
@@ -737,6 +766,38 @@ def vanilla_build_guide():
     try:
         guide.attr("doPreCustomStep").set(False)
         guide.attr("doPostCustomStep").set(False)
+        shifter.log_window()
+        shifter.Rig().buildFromSelection()
+    finally:
+        guide.attr("doPreCustomStep").set(pre_enabled)
+        guide.attr("doPostCustomStep").set(post_enabled)
+
+
+def full_build_guide():
+    """Build rig from guide with pre/post custom steps enabled."""
+    if not has_full_build_steps():
+        cmds.warning("Pre and Post custom scripts are not configured.")
+        return
+
+    cleanup_pre_settings_templates()
+
+    if not cmds.objExists("guide"):
+        cmds.warning("Guide not found.")
+        return
+
+    guide = pm.PyNode("guide")
+    if not guide.hasAttr("ismodel"):
+        cmds.warning("guide is not a valid Shifter guide model.")
+        return
+
+    cmds.select("guide", r=True)
+
+    pre_enabled = guide.attr("doPreCustomStep").get()
+    post_enabled = guide.attr("doPostCustomStep").get()
+
+    try:
+        guide.attr("doPreCustomStep").set(True)
+        guide.attr("doPostCustomStep").set(True)
         shifter.log_window()
         shifter.Rig().buildFromSelection()
     finally:
