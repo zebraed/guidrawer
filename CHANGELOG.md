@@ -1,5 +1,13 @@
 # Changelog
 
+## [2026-07-05] - Version 3.0.0
+
+- Added guide alignment tools (`guide_align`): Fit/Mid Pos, Fit Nearest (mesh / nurbsCurve / nurbsSurface), Align/Mid/Nearest Rot, Aim X/Y/Z, and 90° axis rotation
+- Added Solo Move toggle to sync Preserve Children on Move / Rotate / Scale manipulators
+- Added guide operations via `shifter_bridge`: Duplicate, Mirror, Delete (keep children), Extract Controls, component Settings
+- Added Pre Settings workflow: open settings before draw, cache values, and apply on creation; Reset Settings button
+- Added Vanilla Build and Full Build (pre/post custom steps when present)
+
 ## [2026-07-02] - Version 2.0.0
 
 - Refactored mGear integration via `shifter_bridge`; any registered component type can be drawn without custom code

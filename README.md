@@ -2,20 +2,30 @@
 
 Guidrawer is a utility tool for the rigging framework [mGear](https://github.com/mgear-dev/mgear). It is designed to assist "custom" guide drawing during rigging operations on Maya.
 
-### Draw guide at selected position
-control_01
-![bf441815959d5b3d35d73c9be94f0be4](https://github.com/zebraed/guidrawer_dev/assets/30438415/65032504-d8ad-4455-a9b7-7ef54795ec40)
-
-chain_spring_01
-![046eab1354ef8295dccb37dcfc44ca07](https://github.com/zebraed/guidrawer_dev/assets/30438415/fb97e16c-70a9-4227-a1da-c3efab24df8a)
+![Guidrawer UI](docs/ui.png)
 
 ## Installation
 
-To install Guidrawer, follow these steps:
+### A. Maya module
 
-1. Clone the repository: `$ git clone https://github.com/zebraed/guidrawer.git`
-2. Navigate to the project directory: `$ cd guidrawer`
-3. Place the "guidrawer" directory under the PYTHONPATH of Maya.
+1. Copy this repository to your Maya modules directory as `guidrawer`.
+
+   - Windows: `%USERPROFILE%\Documents\maya\modules\guidrawer`
+   - macOS: `~/Library/Preferences/Autodesk/maya/modules/guidrawer`
+   - Linux: `~/maya/modules/guidrawer`
+
+2. Copy `guidrawer.mod` from the repository to the same `modules` directory (next to the `guidrawer` folder).
+
+3. Restart Maya.
+
+After restart, `import guidrawer` is available without changing `PYTHONPATH` or `sys.path`.
+The MEL menu entries in `scripts/` are also loaded automatically.
+
+### B. From a release
+
+1. Open the [Releases](https://github.com/zebraed/guidrawer/releases) page and download the ZIP for the version you want
+2. Extract the archive to a location of your choice
+3. Install using **A. Maya module** above, or add the extracted `python` directory to `PYTHONPATH` in `Maya.env`:
 
 ## Usage
 

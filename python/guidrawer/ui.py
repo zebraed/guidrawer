@@ -2,7 +2,6 @@
 import os
 
 from maya import cmds
-from maya.app.general.mayaMixin import MayaQWidgetBaseMixin
 
 from mgear.vendor.Qt import QtCore, QtGui, QtWidgets
 
