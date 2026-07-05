@@ -7,6 +7,7 @@ import os
 from contextlib import contextmanager
 
 from maya import cmds
+import mgear
 from mgear.vendor.Qt import QtCore
 import mgear.pymaya as pm
 import mgear.shifter as shifter
@@ -123,6 +124,17 @@ class _ChainDialogStub:
         self.sections_number = sections_number
         self.dir_axis = dir_axis
         self.spacing = spacing
+
+
+@contextmanager
+def _disabled_mgear_log():
+    """Temporarily disable mGear stdout logging."""
+    previous = mgear.logMode
+    mgear.logMode = False
+    try:
+        yield
+    finally:
+        mgear.logMode = previous
 
 
 @contextmanager
@@ -766,8 +778,9 @@ def vanilla_build_guide():
     try:
         guide.attr("doPreCustomStep").set(False)
         guide.attr("doPostCustomStep").set(False)
-        shifter.log_window()
-        shifter.Rig().buildFromSelection()
+        with _disabled_mgear_log():
+            shifter.log_window()
+            shifter.Rig().buildFromSelection()
     finally:
         guide.attr("doPreCustomStep").set(pre_enabled)
         guide.attr("doPostCustomStep").set(post_enabled)

@@ -9,6 +9,7 @@ from mgear.vendor.Qt import QtCore, QtGui, QtWidgets
 from . import const
 from . import decorator
 from . import drawer
+from . import maya_util
 from . import model
 from . import shifter_bridge as bridge
 from . import widget
@@ -23,22 +24,23 @@ ICON_PATH = os.path.join(
 _SOLO_MOVE_ON_STYLE = "QPushButton { border: 2px solid #FFD700; }"
 
 
-class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
+class GuidrawerUI(QtWidgets.QMainWindow):
     """
     Guidrawer UI class
     """
     title = "Guidrawer"
-    windowName = "guidrawer_widget"
+    object_name = "guidrawer_widget"
 
     def __init__(self, parent=None):
+        if parent is None:
+            parent = maya_util.get_maya_main_window()
         super().__init__(parent)
-        if cmds.window(self.windowName, q=True, ex=True):
-            cmds.deleteUI(self.windowName)
 
-        self.setObjectName(self.windowName)
+        self._close_other_instances()
+
+        self.setObjectName(self.object_name)
         self.setWindowTitle(self.title)
-        if os.path.isfile(ICON_PATH):
-            self.setWindowIcon(QtGui.QIcon(ICON_PATH))
+
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setAttribute(QtCore.Qt.WA_AlwaysShowToolTips)
 
@@ -75,13 +77,16 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
         self.__rot_y90_btn = None
         self.__rot_z90_btn = None
         self.__solo_move_btn = None
+
         self.__solo_move_size_locked = False
 
         self.__idx_updating = False
 
+        self._set_window_icon()
+
         setting_file = os.path.join(
             os.getenv("MAYA_APP_DIR"),
-            f"{self.windowName}_windowPref.ini",
+            f"{self.object_name}_windowPref.ini",
         )
         self.pyside_setting = QtCore.QSettings(
             setting_file, QtCore.QSettings.IniFormat
@@ -90,13 +95,31 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
             self.pyside_setting.setIniCodec("utf-8")
 
         self.__initialize()
+        self._setup_focus_clear()
 
         self.name = None
         self.current_side = None
         self.current_comp_type = None
 
+    def _close_other_instances(self):
+        """
+        Close other instances of the GuidrawerUI.
+        """
+        singleton_key = self.object_name
+        for q_window in self.parent().findChildren(QtWidgets.QMainWindow):
+            if q_window is self:
+                continue
+            if q_window.objectName() == singleton_key:
+                q_window.close()
+
+    def _set_window_icon(self) -> None:
+        if os.path.isfile(ICON_PATH):
+            icon = QtGui.QIcon(ICON_PATH)
+            if not icon.isNull():
+                self.setWindowIcon(icon)
+
     def __comp_type_setting_key(self):
-        return f"{self.windowName}-comp_type"
+        return f"{self.object_name}-comp_type"
 
     def __save_comp_type(self, comp_type):
         if self.pyside_setting and comp_type:
@@ -209,7 +232,7 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
         main_option_layout.addLayout(opt_layout)
         main_option_layout.addLayout(parentRoot_layout)
 
-        self.__create_gd_btn = QtWidgets.QPushButton("Create", parent=opt_widget)
+        self.__create_gd_btn = QtWidgets.QPushButton("Draw", parent=opt_widget)
         self.__create_gd_btn.setIcon(QtGui.QIcon(":/createBin.png"))
         self.__create_gd_btn.clicked.connect(
             lambda x: self.create_guide_pos(cmds.ls(sl=True, fl=True))
@@ -595,15 +618,72 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
     def restore(self):
         if self.pyside_setting:
             self.restoreGeometry(
-                self.pyside_setting.value(f"{self.windowName}-geom")
+                self.pyside_setting.value(f"{self.object_name}-geom")
             )
 
     def closeEvent(self, event):
         if self.pyside_setting:
             self.__save_comp_type(self.__get_comp_type())
             self.pyside_setting.setValue(
-                f"{self.windowName}-geom", self.saveGeometry()
+                f"{self.object_name}-geom", self.saveGeometry()
             )
+        super().closeEvent(event)
+
+    def eventFilter(self, obj, event):
+        if (
+            event.type() == QtCore.QEvent.MouseButtonPress
+            and event.button() == QtCore.Qt.LeftButton
+            and obj is not self
+            and not self._is_inside_input_widget(obj)
+        ):
+            self._clear_input_focus()
+
+        if obj is self.parent() and event.type() == QtCore.QEvent.Close:
+            self.close()
+        return super().eventFilter(obj, event)
+
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            self._clear_input_focus()
+        super().mousePressEvent(event)
+
+    def _input_focus_widget_types(self):
+        return (
+            QtWidgets.QLineEdit,
+            QtWidgets.QAbstractSpinBox,
+            QtWidgets.QComboBox,
+        )
+
+    def _is_inside_input_widget(self, widget):
+        current = widget
+        input_types = self._input_focus_widget_types()
+        while current is not None and current is not self:
+            if isinstance(current, input_types):
+                return True
+            current = current.parentWidget()
+        return False
+
+    def _clear_input_focus(self):
+        focused_widget = QtWidgets.QApplication.focusWidget()
+        if focused_widget is None or focused_widget is self:
+            return
+        if not self.isAncestorOf(focused_widget):
+            return
+        focused_widget.clearFocus()
+
+    def _setup_focus_clear(self):
+        parent = self.parent()
+        if parent is not None:
+            parent.installEventFilter(self)
+        target = self.centralWidget()
+        if target is not None:
+            target.installEventFilter(self)
+        for child in self.findChildren(QtWidgets.QWidget):
+            if child is target:
+                continue
+            if self._is_inside_input_widget(child):
+                continue
+            child.installEventFilter(self)
 
     def create_guide(self):
         self.__set_name()
@@ -774,5 +854,7 @@ class GuidrawerUI(MayaQWidgetBaseMixin, QtWidgets.QMainWindow):
 
 
 def show(*args):
-    a = GuidrawerUI()
-    a.show()
+    window = GuidrawerUI()
+    window.show()
+    window.raise_()
+    window.activateWindow()

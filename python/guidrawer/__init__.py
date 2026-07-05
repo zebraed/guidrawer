@@ -1,5 +1,5 @@
 __author__ = "zebraed"
-__version__ = "2.0.0"
+__version__ = "3.0.0"
 __license__ = "MIT"
 __copyright__ = "Copyright 2022-2026 zebraed"
 
