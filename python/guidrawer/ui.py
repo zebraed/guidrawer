@@ -58,11 +58,12 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__settings_btn = None
         self.__mir_gd_btn = None
         self.__dup_gd_btn = None
-        self.__extr_ctrl_btn = None
         self.__del_gd_btn = None
         self.__del_keep_child_gd_btn = None
+        self.__update_component_btn = None
         self.__vanilla_build_btn = None
         self.__full_build_btn = None
+        self.__unbuild_btn = None
         self.__fit_to_pos_btn = None
         self.__align_mid_pos_btn = None
         self.__fit_nearest_btn = None
@@ -76,6 +77,12 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__rot_y90_btn = None
         self.__rot_z90_btn = None
         self.__solo_move_btn = None
+        self.__sel_shape_btn = None
+        self.__scale_shape_btn = None
+        self.__edit_shape_btn = None
+        self.__replace_shape_btn = None
+        self.__mirror_shape_btn = None
+        self.__extr_ctrl_btn = None
 
         self.__solo_move_size_locked = False
 
@@ -273,14 +280,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         )
         button_layout.addWidget(self.__mir_gd_btn, 0, 1)
 
-        self.__extr_ctrl_btn = QtWidgets.QPushButton("Extr. Ctrl")
-        self.__extr_ctrl_btn.setIcon(QtGui.QIcon(":/extend.png"))
-        self.__extr_ctrl_btn.clicked.connect(
-            lambda x: self.__extract_controls()
-        )
-        button_layout.addWidget(self.__extr_ctrl_btn, 0, 2)
-
-        for col in range(3):
+        for col in range(2):
             button_layout.setColumnStretch(col, 1)
 
         self.__del_gd_btn = QtWidgets.QPushButton("Delete")
@@ -301,6 +301,14 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         delete_layout.addWidget(self.__del_gd_btn)
         delete_layout.addWidget(self.__del_keep_child_gd_btn)
 
+        self.__update_component_btn = QtWidgets.QPushButton("Update Component")
+        self.__update_component_btn.setIcon(
+            QtGui.QIcon(":/updateBookmark.png")
+        )
+        self.__update_component_btn.clicked.connect(
+            lambda x: self.__update_component_type()
+        )
+
         self.__hl_frame3 = widget.HorizontalLine(tools_frame)
 
         self.__vanilla_build_btn = QtWidgets.QPushButton("Vanilla Build")
@@ -320,10 +328,18 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         build_layout.addWidget(self.__vanilla_build_btn)
         build_layout.addWidget(self.__full_build_btn)
 
+        self.__unbuild_btn = QtWidgets.QPushButton("Unbuild")
+        self.__unbuild_btn.setIcon(QtGui.QIcon(":/removeSkinInfluence.png"))
+        self.__unbuild_btn.clicked.connect(
+            lambda x: self.__unbuild_guide()
+        )
+
         tools_inner_layout.addLayout(button_layout)
         tools_inner_layout.addLayout(delete_layout)
+        tools_inner_layout.addWidget(self.__update_component_btn)
         tools_inner_layout.addWidget(self.__hl_frame3)
         tools_inner_layout.addLayout(build_layout)
+        tools_inner_layout.addWidget(self.__unbuild_btn)
 
         align_group, align_frame = widget.group_box_frame(
             "Placement Tools", self.__main_widget, "guideAlign"
@@ -436,6 +452,70 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
         align_inner_layout.addLayout(solo_move_layout)
 
+        shape_group, shape_frame = widget.group_box_frame(
+            "Controller Shape Tools",
+            self.__main_widget,
+            "controllerShapeTools",
+        )
+        shape_group.toggled.connect(self.__on_collapsible_group_toggled)
+        shape_inner_layout = QtWidgets.QVBoxLayout(shape_frame)
+        shape_inner_layout.setSpacing(0)
+        shape_inner_layout.setContentsMargins(0, 0, 0, 0)
+
+        shape_layout = QtWidgets.QGridLayout()
+        shape_layout.setSizeConstraint(
+            QtWidgets.QLayout.SetFixedSize
+        )
+
+        self.__sel_shape_btn = QtWidgets.QPushButton("Sel Shape")
+        self.__sel_shape_btn.setIcon(QtGui.QIcon(":/lassoSelect.png"))
+        self.__sel_shape_btn.clicked.connect(
+            lambda x: self.__select_controller_shapes()
+        )
+        shape_layout.addWidget(self.__sel_shape_btn, 0, 0)
+
+        self.__scale_shape_btn = QtWidgets.QPushButton("Scale Shape")
+        self.__scale_shape_btn.setIcon(
+            QtGui.QIcon(":/modifyScaleCurvature.png")
+        )
+        self.__wire_scale_shape_button(self.__scale_shape_btn)
+        shape_layout.addWidget(self.__scale_shape_btn, 0, 1)
+
+        self.__edit_shape_btn = QtWidgets.QPushButton("Edit")
+        self.__edit_shape_btn.setIcon(
+            QtGui.QIcon(":/textureEditorShortestEdgePath.png")
+        )
+        self.__edit_shape_btn.clicked.connect(
+            lambda x: self.__toggle_controller_edit_mode()
+        )
+        shape_layout.addWidget(self.__edit_shape_btn, 0, 2)
+
+        self.__replace_shape_btn = QtWidgets.QPushButton("Replace")
+        self.__replace_shape_btn.setIcon(QtGui.QIcon(":/isolateCurve.png"))
+        self.__replace_shape_btn.clicked.connect(
+            lambda x: self.__replace_control_shape()
+        )
+        shape_layout.addWidget(self.__replace_shape_btn, 1, 0)
+
+        self.__mirror_shape_btn = QtWidgets.QPushButton("Mirror Shape")
+        self.__mirror_shape_btn.setIcon(QtGui.QIcon(":/out_alignCurve.png"))
+        self.__mirror_shape_btn.clicked.connect(
+            lambda x: self.__mirror_control_shape()
+        )
+        shape_layout.addWidget(self.__mirror_shape_btn, 1, 1)
+
+        self.__extr_ctrl_btn = QtWidgets.QPushButton("Extr. Ctrl")
+        self.__extr_ctrl_btn.setIcon(QtGui.QIcon(":/extend.png"))
+        self.__extr_ctrl_btn.clicked.connect(
+            lambda x: self.__extract_controls()
+        )
+        shape_layout.addWidget(self.__extr_ctrl_btn, 1, 2)
+
+        for col in range(3):
+            shape_layout.setColumnStretch(col, 1)
+
+        shape_inner_layout.addLayout(shape_layout)
+
         central_layout = QtWidgets.QVBoxLayout(self.__main_widget)
         central_layout.setAlignment(QtCore.Qt.AlignTop)
         central_layout.setContentsMargins(10, 10, 10, 10)
@@ -444,6 +524,8 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         central_layout.addWidget(tools_group, 0)
         central_layout.addSpacing(8)
         central_layout.addWidget(align_group, 0)
+        central_layout.addSpacing(8)
+        central_layout.addWidget(shape_group, 0)
 
         self.__core.sideChanged.connect(self.__on_side_changed)
         self.__core.compTypeChanged.connect(self.__on_comp_type_changed)
@@ -453,11 +535,17 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__sync_solo_move_button()
         self.__update_pre_settings_btn()
         self.__update_full_build_btn()
+        self.__update_unbuild_btn()
 
     def __update_full_build_btn(self):
         if not self.__full_build_btn:
             return
         self.__full_build_btn.setEnabled(self.__gd.has_full_build_steps())
+
+    def __update_unbuild_btn(self):
+        if not self.__unbuild_btn:
+            return
+        self.__unbuild_btn.setEnabled(self.__gd.has_built_rig())
 
     def __update_pre_settings_btn(self):
         if not self.__pre_settings_btn:
@@ -602,6 +690,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__refresh_component_index()
         self.__sync_solo_move_button()
         self.__update_full_build_btn()
+        self.__update_unbuild_btn()
         self.shrink()
         super().show()
         QtCore.QTimer.singleShot(0, self.__finalize_window_layout)
@@ -613,6 +702,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             self.__sync_solo_move_button()
             self.__update_pre_settings_btn()
             self.__update_full_build_btn()
+            self.__update_unbuild_btn()
 
     def restore(self):
         if self.pyside_setting:
@@ -684,14 +774,16 @@ class GuidrawerUI(QtWidgets.QMainWindow):
                 continue
             child.installEventFilter(self)
 
-    def create_guide(self):
+    def create_guide(self, parent_root=None):
         self.__set_name()
+        if parent_root is None:
+            parent_root = self.__get_parent_root()
         guide_name = self.__gd.create_guide(
             comp_type=self.__get_comp_type(),
             name=self.name,
             side=self.__get_side(),
             idx=self.__get_idx(),
-            parent_root=self.__get_parent_root(),
+            parent_root=parent_root,
         )
         if guide_name:
             self.__gd.apply_pre_settings(
@@ -705,11 +797,26 @@ class GuidrawerUI(QtWidgets.QMainWindow):
     def create_guide_pos(self, nodes):
         if not isinstance(nodes, list):
             nodes = [nodes]
+
         if not nodes:
-            cmds.warning("Nothing selected.")
-            return
-        for i_node in nodes:
             guide_name = self.create_guide()
+            if not guide_name:
+                return
+            parent_text = self.__get_parent_root().strip()
+            if parent_text:
+                validated = bridge.validate_guide(parent_text)
+                if validated:
+                    bridge.set_guide_to_parent_origin(guide_name)
+            return
+
+        parent_text = self.__get_parent_root().strip()
+        for i_node in nodes:
+            draw_parent = parent_text
+            if not draw_parent:
+                draw_parent = bridge.get_draw_parent_from_selection(i_node)
+                if draw_parent is None:
+                    draw_parent = ""
+            guide_name = self.create_guide(parent_root=draw_parent)
             if not guide_name:
                 return
             pos = cmds.xform(i_node, q=True, t=True, ws=True)
@@ -753,12 +860,38 @@ class GuidrawerUI(QtWidgets.QMainWindow):
     def __extract_controls(self):
         self.__gd.extract_controls()
 
+    def __select_controller_shapes(self):
+        self.__gd.select_controller_shapes()
+
+    @decorator.undo
+    def __scale_controller_shapes(self, delta):
+        self.__gd.scale_controller_shapes(delta)
+
+    def __toggle_controller_edit_mode(self):
+        self.__gd.toggle_controller_edit_mode()
+
+    def __replace_control_shape(self):
+        self.__gd.replace_control_shape()
+
+    def __mirror_control_shape(self):
+        self.__gd.mirror_control_shape()
+
+    def __update_component_type(self):
+        self.__gd.update_component_type()
+
     @decorator.undo
     def __vanilla_build_guide(self):
         self.__gd.vanilla_build_guide()
+        self.__update_unbuild_btn()
 
     def __full_build_guide(self):
         self.__gd.full_build_guide()
+        self.__update_unbuild_btn()
+
+    @decorator.undo
+    def __unbuild_guide(self):
+        self.__gd.unbuild_guide()
+        self.__update_unbuild_btn()
 
     @decorator.undo
     def __fit_to_pos(self):
@@ -845,6 +978,15 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         btn.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         btn.customContextMenuRequested.connect(
             lambda pos: self.__rotate_axis(axis, -90.0)
+        )
+
+    def __wire_scale_shape_button(self, btn):
+        btn.clicked.connect(
+            lambda x: self.__scale_controller_shapes(0.1)
+        )
+        btn.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        btn.customContextMenuRequested.connect(
+            lambda pos: self.__scale_controller_shapes(-0.1)
         )
 
     @decorator.undo

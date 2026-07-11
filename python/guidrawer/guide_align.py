@@ -155,13 +155,70 @@ def _set_world_rotation_preserve_position(node, rotation):
     cmds.xform(node, t=position, ro=rotation, ws=True)
 
 
-def _get_transform_node(node):
+def _get_world_position(node):
+    """Return world position for a transform or DAG component."""
     if _is_component(node):
-        parents = cmds.listRelatives(node, parent=True, fullPath=True)
-        if parents:
-            return parents[0]
+        try:
+            return cmds.pointPosition(node, w=True)
+        except RuntimeError:
+            return None
+    return _get_world_translation(node)
+
+
+def _get_movable_transform(node):
+    """Return a transform node that can be moved or rotated."""
+    if not _is_component(node):
+        node_type = cmds.nodeType(node)
+        if node_type in _SURFACE_SHAPE_TYPES:
+            parents = cmds.listRelatives(node, parent=True, fullPath=True)
+            if parents:
+                return parents[0]
+        return node
+
+    current = node
+    for _ in range(4):
+        parents = cmds.listRelatives(current, parent=True, fullPath=True)
+        if not parents:
+            return None
+        parent = parents[0]
+        parent_type = cmds.nodeType(parent)
+        if parent_type == "transform":
+            return parent
+        if parent_type in _SURFACE_SHAPE_TYPES:
+            current = parent
+            continue
+        return parent
+    return None
+
+
+def _parse_component_index(component, prefix):
+    match = re.search(rf"\.{prefix}\[([^\]]+)\]", component)
+    if not match:
         return None
-    return node
+    value = match.group(1)
+    if ":" in value:
+        value = value.split(":")[0]
+    return value
+
+
+def _project_point_on_segment(p0, p1, point):
+    segment = _vec_sub(p1, p0)
+    length_sq = _vec_dot(segment, segment)
+    if length_sq < 1e-12:
+        return list(p0)
+    t = _vec_dot(_vec_sub(point, p0), segment) / length_sq
+    t = max(0.0, min(1.0, t))
+    return _vec_add(p0, _vec_scale(segment, t))
+
+
+def _is_surface_fit_target(target):
+    if _is_component(target):
+        return _get_surface_shape(target) is not None
+    return _get_surface_dag_path(target) is not None
+
+
+def _get_transform_node(node):
+    return _get_movable_transform(node)
 
 
 def _get_surface_shape(node):
@@ -279,28 +336,12 @@ def _get_face_frame(face):
 
 def _get_surface_dag_path(node):
     """Return MDagPath to a surface shape under node."""
-    if _is_component(node):
-        node = _get_transform_node(node)
-        if not node:
-            return None
-
-    node_type = cmds.nodeType(node)
-    if node_type in _SURFACE_SHAPE_TYPES:
-        target = node
-    else:
-        shapes = cmds.listRelatives(
-            node,
-            shapes=True,
-            ni=True,
-            fullPath=True,
-            type=_SURFACE_SHAPE_TYPES,
-        )
-        if not shapes:
-            return None
-        target = shapes[0]
+    shape = _get_surface_shape(node)
+    if not shape:
+        return None
 
     selection = om.MSelectionList()
-    selection.add(target)
+    selection.add(shape)
     return selection.getDagPath(0)
 
 
@@ -479,6 +520,193 @@ def _get_nurbs_surface_closest_frame_api(dag_path, world_point):
     return position, normal, tangent
 
 
+def _closest_point_on_triangle(p0, p1, p2, point):
+    edge0 = _vec_sub(p1, p0)
+    edge1 = _vec_sub(p2, p0)
+    to_point = _vec_sub(point, p0)
+
+    d00 = _vec_dot(edge0, edge0)
+    d01 = _vec_dot(edge0, edge1)
+    d11 = _vec_dot(edge1, edge1)
+    d20 = _vec_dot(to_point, edge0)
+    d21 = _vec_dot(to_point, edge1)
+
+    denom = d00 * d11 - d01 * d01
+    if abs(denom) < 1e-12:
+        candidates = [
+            _project_point_on_segment(p0, p1, point),
+            _project_point_on_segment(p1, p2, point),
+            _project_point_on_segment(p2, p0, point),
+        ]
+        best = candidates[0]
+        best_dist = _vec_dot(_vec_sub(best, point), _vec_sub(best, point))
+        for candidate in candidates[1:]:
+            dist = _vec_dot(_vec_sub(candidate, point), _vec_sub(candidate, point))
+            if dist < best_dist:
+                best = candidate
+                best_dist = dist
+        return best
+
+    v = (d11 * d20 - d01 * d21) / denom
+    w = (d00 * d21 - d01 * d20) / denom
+    u = 1.0 - v - w
+
+    if u >= 0.0 and v >= 0.0 and w >= 0.0:
+        return _vec_add(
+            _vec_add(_vec_scale(p0, u), _vec_scale(p1, v)),
+            _vec_scale(p2, w),
+        )
+
+    candidates = [
+        _project_point_on_segment(p0, p1, point),
+        _project_point_on_segment(p1, p2, point),
+        _project_point_on_segment(p2, p0, point),
+    ]
+    best = candidates[0]
+    best_dist = _vec_dot(_vec_sub(best, point), _vec_sub(best, point))
+    for candidate in candidates[1:]:
+        dist = _vec_dot(_vec_sub(candidate, point), _vec_sub(candidate, point))
+        if dist < best_dist:
+            best = candidate
+            best_dist = dist
+    return best
+
+
+def _get_closest_on_edge(edge, world_point):
+    verts = cmds.ls(
+        cmds.polyListComponentConversion(edge, fromEdge=True, toVertex=True),
+        fl=True,
+    )
+    if len(verts) < 2:
+        return None, None, None
+
+    p0 = cmds.pointPosition(verts[0], w=True)
+    p1 = cmds.pointPosition(verts[1], w=True)
+    position = _project_point_on_segment(p0, p1, world_point)
+    normal, tangent = _get_edge_frame(edge)
+    return position, normal, tangent
+
+
+def _get_closest_on_face(face, world_point):
+    verts = cmds.ls(
+        cmds.polyListComponentConversion(face, fromFace=True, toVertex=True),
+        fl=True,
+    )
+    if len(verts) < 3:
+        return None, None, None
+
+    points = [cmds.pointPosition(vertex, w=True) for vertex in verts]
+    anchor = points[0]
+    best_pos = None
+    best_dist_sq = None
+    for index in range(1, len(points) - 1):
+        candidate = _closest_point_on_triangle(
+            anchor, points[index], points[index + 1], world_point
+        )
+        delta = _vec_sub(candidate, world_point)
+        dist_sq = _vec_dot(delta, delta)
+        if best_dist_sq is None or dist_sq < best_dist_sq:
+            best_dist_sq = dist_sq
+            best_pos = candidate
+
+    normal, tangent = _get_face_frame(face)
+    return best_pos, normal, tangent
+
+
+def _get_isoparm_curve_fn(isoparm):
+    dag_path = _get_surface_dag_path(isoparm)
+    if not dag_path:
+        return None
+
+    surf_fn = om.MFnNurbsSurface(dag_path)
+    if ".u[" in isoparm:
+        param_text = _parse_component_index(isoparm, "u")
+        if param_text is None:
+            return None
+        curve_obj = surf_fn.getCurve(0, float(param_text))
+    elif ".v[" in isoparm:
+        param_text = _parse_component_index(isoparm, "v")
+        if param_text is None:
+            return None
+        curve_obj = surf_fn.getCurve(1, float(param_text))
+    else:
+        return None
+
+    return om.MFnNurbsCurve(curve_obj)
+
+
+def _get_closest_on_isoparm(isoparm, world_point):
+    curve_fn = _get_isoparm_curve_fn(isoparm)
+    if curve_fn is None:
+        return None, None, None
+
+    query = om.MPoint(world_point[0], world_point[1], world_point[2])
+    param = _curve_parameter_at_point(curve_fn, query)
+    if param is None:
+        return None, None, None
+
+    position = _mpoint_to_list(curve_fn.getPointAtParam(param, om.MSpace.kWorld))
+    tangent_vec = curve_fn.tangent(param, om.MSpace.kWorld)
+    if isinstance(tangent_vec, (tuple, list)):
+        tangent_vec = tangent_vec[0]
+    tangent = _vec_normalize(_mvector_to_list(tangent_vec))
+    if not tangent:
+        return position, None, None
+    normal = _perpendicular_axis(tangent)
+    return position, normal, tangent
+
+
+def _get_constrained_closest_frame(target, world_point):
+    """Return position/normal/tangent constrained to a fit target."""
+    if _is_component(target):
+        if ".vtx[" in target:
+            position = cmds.pointPosition(target, w=True)
+            normal = _get_vertex_normal(target)
+            if not normal:
+                return position, None, None
+            tangent = _perpendicular_axis(normal)
+            return position, normal, tangent
+
+        if ".e[" in target:
+            return _get_closest_on_edge(target, world_point)
+
+        if ".f[" in target:
+            return _get_closest_on_face(target, world_point)
+
+        if ".cv[" in target:
+            position = cmds.pointPosition(target, w=True)
+            normal, tangent = _get_component_frame(target)
+            return position, normal, tangent
+
+        if ".u[" in target or ".v[" in target:
+            shape = _get_surface_shape(target)
+            if shape and cmds.nodeType(shape) == "nurbsCurve" and ".u[" in target:
+                dag_path = _get_surface_dag_path(shape)
+                param_text = _parse_component_index(target, "u")
+                if dag_path and param_text is not None:
+                    curve_fn = om.MFnNurbsCurve(dag_path)
+                    param = float(param_text)
+                    position = _mpoint_to_list(
+                        curve_fn.getPointAtParam(param, om.MSpace.kWorld)
+                    )
+                    tangent_vec = curve_fn.tangent(param, om.MSpace.kWorld)
+                    if isinstance(tangent_vec, (tuple, list)):
+                        tangent_vec = tangent_vec[0]
+                    tangent = _vec_normalize(_mvector_to_list(tangent_vec))
+                    if tangent:
+                        normal = _perpendicular_axis(tangent)
+                        return position, normal, tangent
+            return _get_closest_on_isoparm(target, world_point)
+
+        if ".map[" in target:
+            dag_path = _get_surface_dag_path(target)
+            if not dag_path:
+                return None, None, None
+            return _get_mesh_closest_frame_api(dag_path, world_point)
+
+    return _get_closest_frame_on_surface(target, world_point)
+
+
 def _get_closest_frame_on_surface(node, world_point):
     dag_path = _get_surface_dag_path(node)
     if not dag_path:
@@ -539,6 +767,28 @@ def _get_component_frame(component):
             return normal, tangent
         if shape_type == "nurbsSurface":
             return _get_nurbs_surface_frame(shape, position)
+
+    if ".u[" in component or ".v[" in component:
+        shape = _get_surface_shape(component)
+        if shape and cmds.nodeType(shape) == "nurbsCurve" and ".u[" in component:
+            dag_path = _get_surface_dag_path(shape)
+            param_text = _parse_component_index(component, "u")
+            if dag_path and param_text is not None:
+                curve_fn = om.MFnNurbsCurve(dag_path)
+                param = float(param_text)
+                position = _mpoint_to_list(
+                    curve_fn.getPointAtParam(param, om.MSpace.kWorld)
+                )
+                tangent_vec = curve_fn.tangent(param, om.MSpace.kWorld)
+                if isinstance(tangent_vec, (tuple, list)):
+                    tangent_vec = tangent_vec[0]
+                tangent = _vec_normalize(_mvector_to_list(tangent_vec))
+                if tangent:
+                    normal = _perpendicular_axis(tangent)
+                    return normal, tangent
+        position = cmds.pointPosition(component, w=True)
+        _, normal, tangent = _get_closest_on_isoparm(component, position)
+        return normal, tangent
 
     return None, None
 
@@ -627,9 +877,12 @@ def fit_to_pos():
         return
 
     reference = selection[-1]
-    target_pos = _get_world_translation(reference)
+    target_pos = _get_world_position(reference)
+    if not target_pos:
+        cmds.warning("Could not get position from fit target.")
+        return
     for node in selection[:-1]:
-        target = _get_transform_node(node)
+        target = _get_movable_transform(node)
         if target:
             _set_world_translation(target, target_pos)
 
@@ -647,39 +900,44 @@ def align_mid_pos():
     others = selection[:-1]
     positions = []
     for node in others:
-        positions.append(_get_world_translation(node))
+        position = _get_world_position(node)
+        if position:
+            positions.append(position)
 
     average_pos = _average_vectors(positions)
     if not average_pos:
         return
 
-    target = _get_transform_node(last_node)
+    target = _get_movable_transform(last_node)
     if target:
         _set_world_translation(target, average_pos)
 
 
 def fit_nearest():
-    """Move guides to the closest point on the last surface selection."""
+    """Move guides to the closest point on the last fit target."""
     selection = _get_selection()
     if not selection:
         return
     if len(selection) < 2:
-        cmds.warning("Select one or more guides, then a fit target surface.")
+        cmds.warning("Select one or more guides, then a fit target.")
         return
 
-    surface = selection[-1]
-    if not _get_surface_dag_path(surface):
+    fit_target = selection[-1]
+    if not _is_surface_fit_target(fit_target):
         cmds.warning(
-            "Last selection must be a polygon mesh, nurbsCurve, or nurbsSurface."
+            "Last selection must be a mesh, nurbsCurve, nurbsSurface, "
+            "or their components."
         )
         return
 
     for node in selection[:-1]:
-        target = _get_transform_node(node)
+        target = _get_movable_transform(node)
         if not target:
             continue
-        source_pos = _get_world_translation(target)
-        position, _, _ = _get_closest_frame_on_surface(surface, source_pos)
+        source_pos = _get_world_position(target)
+        if not source_pos:
+            continue
+        position, _, _ = _get_constrained_closest_frame(fit_target, source_pos)
         if position:
             _set_world_translation(target, position)
 
@@ -706,14 +964,14 @@ def align_rot():
             cmds.warning("Could not build rotation from component.")
             return
         for node in targets:
-            target = _get_transform_node(node)
+            target = _get_movable_transform(node)
             if target:
                 _set_world_rotation_preserve_position(target, rotation)
         return
 
     rotation = _get_world_rotation(reference)
     for node in targets:
-        target = _get_transform_node(node)
+        target = _get_movable_transform(node)
         if target:
             _set_world_rotation_preserve_position(target, rotation)
 
@@ -731,7 +989,7 @@ def align_mid_rot():
     others = selection[:-1]
     transform_nodes = []
     for node in others:
-        target = _get_transform_node(node)
+        target = _get_movable_transform(node)
         if target:
             transform_nodes.append(target)
 
@@ -739,33 +997,38 @@ def align_mid_rot():
     if not rotation:
         return
 
-    target = _get_transform_node(last_node)
+    target = _get_movable_transform(last_node)
     if target:
         _set_world_rotation_preserve_position(target, rotation)
 
 
 def align_rot_nearest():
-    """Align guide rotation to the closest surface Normal/Tangent."""
+    """Align guide rotation to the closest Normal/Tangent on the fit target."""
     selection = _get_selection()
     if not selection:
         return
     if len(selection) < 2:
-        cmds.warning("Select one or more guides, then a fit target surface.")
+        cmds.warning("Select one or more guides, then a fit target.")
         return
 
-    surface = selection[-1]
-    if not _get_surface_dag_path(surface):
+    fit_target = selection[-1]
+    if not _is_surface_fit_target(fit_target):
         cmds.warning(
-            "Last selection must be a polygon mesh, nurbsCurve, or nurbsSurface."
+            "Last selection must be a mesh, nurbsCurve, nurbsSurface, "
+            "or their components."
         )
         return
 
     for node in selection[:-1]:
-        target = _get_transform_node(node)
+        target = _get_movable_transform(node)
         if not target:
             continue
-        source_pos = _get_world_translation(target)
-        _, normal, tangent = _get_closest_frame_on_surface(surface, source_pos)
+        source_pos = _get_world_position(target)
+        if not source_pos:
+            continue
+        _, normal, tangent = _get_constrained_closest_frame(
+            fit_target, source_pos
+        )
         if not normal or not tangent:
             continue
         rotation = _rotation_from_normal_tangent(normal, tangent)
@@ -835,14 +1098,17 @@ def _aim(axis_key):
         cmds.warning("Select one or more guides, then an aim target.")
         return
 
-    reference = _get_transform_node(selection[-1])
+    reference = _get_movable_transform(selection[-1])
     if not reference:
         cmds.warning("Invalid aim target.")
         return
-    target_pos = _get_world_translation(reference)
+    target_pos = _get_world_position(reference)
+    if not target_pos:
+        cmds.warning("Could not get position from aim target.")
+        return
 
     for node in selection[:-1]:
-        guide = _get_transform_node(node)
+        guide = _get_movable_transform(node)
         if not guide:
             continue
         source_pos = _get_world_translation(guide)
@@ -910,7 +1176,7 @@ def rotate_selected(axis, degrees):
             rotate_values = (0.0, 0.0, degrees)
 
         for node in selection:
-            target = _get_transform_node(node)
+            target = _get_movable_transform(node)
             if not target:
                 continue
             if not cmds.objExists("{}.rotate".format(target)):
@@ -930,7 +1196,7 @@ def rotate_selected(axis, degrees):
     delta = _local_axis_euler_rotation(axis_key, degrees)
 
     for node in selection:
-        target = _get_transform_node(node)
+        target = _get_movable_transform(node)
         if not target:
             continue
         if not cmds.objExists("{}.rotate".format(target)):

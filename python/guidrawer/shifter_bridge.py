@@ -8,12 +8,17 @@ from contextlib import contextmanager
 
 from maya import cmds
 import mgear
+from mgear.compatible import compatible_comp_dagmenu
+from mgear.core import pyqt
 from mgear.vendor.Qt import QtCore
 import mgear.pymaya as pm
 import mgear.shifter as shifter
 from mgear.shifter import guide as shifter_guide
 from mgear.shifter import guide_manager
+from mgear.shifter import utils as shifter_utils
 from mgear.shifter.component import chain_guide_initializer
+import mgear.rigbits as rigbits
+from mgear.rigbits import mirror_controls
 
 from . import exception
 
@@ -92,11 +97,32 @@ def get_next_component_index(name, side, comp_type, parent, start_index=0):
 
 def _get_index_parent_node(parent):
     """Return the draw parent passed to Rig.drawNewComponent()."""
-    if parent:
-        validated = validate_guide(parent)
-        if validated:
-            return pm.PyNode(validated)
+    draw_parent = resolve_draw_parent(parent)
+    if draw_parent:
+        return pm.PyNode(draw_parent)
     return None
+
+
+def get_guide_model():
+    """Return guide model transform name in the scene, or None."""
+    for entry in shifter_utils.get_guide():
+        name = _resolve_rig_transform_name(entry)
+        if name and cmds.objExists(name):
+            if cmds.objExists(f"{name}.ismodel"):
+                return name
+    return None
+
+
+def resolve_draw_parent(parent):
+    """Resolve parent for drawing a component.
+
+    When parent is empty, use the existing guide model if present.
+    Otherwise return None so mGear creates the initial guide hierarchy.
+    """
+    if parent and str(parent).strip():
+        return validate_guide(str(parent).strip())
+
+    return get_guide_model()
 
 
 def is_chain_type(comp_type):
@@ -195,6 +221,51 @@ def get_component_root(node):
     return None
 
 
+def get_draw_parent_from_selection(node):
+    """Return a guide node to parent under when UI parent is empty.
+
+    Args:
+        node (str): Selected node name.
+
+    Returns:
+        str or None: Valid guide element to use as draw parent.
+    """
+    if not node or not cmds.objExists(node):
+        return None
+
+    guide_root = validate_guide(node)
+    if guide_root:
+        return guide_root
+
+    component_root = get_component_root(node)
+    if component_root:
+        return validate_guide(component_root)
+    return None
+
+
+def get_settings_root(node):
+    """Return component root or guide model for opening settings UI.
+
+    Walks up from the given node, matching mGear inspect_settings behavior.
+    """
+    if not node or not cmds.objExists(node):
+        return None
+
+    current = node
+    visited = set()
+    while current and current not in visited:
+        visited.add(current)
+        if cmds.objExists(f"{current}.comp_type"):
+            return current
+        if cmds.objExists(f"{current}.ismodel"):
+            return current
+        parents = cmds.listRelatives(current, parent=True, fullPath=True)
+        if not parents:
+            break
+        current = parents[0]
+    return None
+
+
 def get_parent_component_root(node):
     """Return the component root directly above node, or None."""
     full_paths = cmds.ls(node, l=True)
@@ -239,6 +310,12 @@ def list_child_component_roots(root):
     return child_roots
 
 
+def set_guide_to_parent_origin(guide_root):
+    """Place guide_root at the origin of its current parent space."""
+    if guide_root and cmds.objExists(guide_root):
+        cmds.xform(guide_root, os=True, t=(0, 0, 0))
+
+
 def draw_component(parent, comp_type, chain_opt=None):
     """Draw a component guide using mGear's standard flow.
 
@@ -246,7 +323,8 @@ def draw_component(parent, comp_type, chain_opt=None):
     handled by mGear's Rig.drawNewComponent().
 
     Args:
-        parent (str): Parent guide node name.
+        parent (str or None): Parent guide node name. None creates the
+            initial guide hierarchy when no guide exists in the scene.
         comp_type (str): Component type name.
         chain_opt (dict, optional): Options for chain components with keys
             sections_number, dir_axis, spacing. If omitted, mGear's default
@@ -255,16 +333,20 @@ def draw_component(parent, comp_type, chain_opt=None):
     Returns:
         str or None: New guide root name.
     """
-    if not cmds.objExists(parent):
-        raise exception.NotExistError(
-            f"Parent object is not exists. : {parent}"
-        )
+    parent_node = None
+    if parent:
+        if not cmds.objExists(parent):
+            raise exception.NotExistError(
+                f"Parent object is not exists. : {parent}"
+            )
+        parent_node = pm.PyNode(parent)
 
     rig = shifter_guide.Rig()
-    parent_node = pm.PyNode(parent)
     if chain_opt:
         with _override_chain_dialog(**chain_opt):
-            result = rig.drawNewComponent(parent_node, comp_type, showUI=False)
+            result = rig.drawNewComponent(
+                parent_node, comp_type, showUI=False
+            )
     else:
         result = rig.drawNewComponent(parent_node, comp_type, showUI=False)
 
@@ -625,7 +707,6 @@ def open_pre_settings(comp_type, parent):
 
     cmds.select(template, r=True)
     guide_module = shifter.importComponentGuide(comp_type)
-    from mgear.core import pyqt
 
     dialog = pyqt.showDialog(
         guide_module.componentSettings, dockable=True
@@ -691,66 +772,287 @@ def apply_pre_settings(comp_type, target_root):
 
 
 def open_component_settings(root):
-    """Open mGear's component/guide settings UI for the given root.
+    """Open mGear component or guide root settings UI.
 
     Uses mGear guide_manager.inspect_settings, which resolves the
-    component from the current selection.
+    target from the current selection.
 
     Args:
-        root (str): Component root node name.
+        root (str): Component root or guide model node name.
     """
-    cmds.select(root, r=True)
+    settings_root = get_settings_root(root)
+    if not settings_root:
+        cmds.warning("The selected object is not part of component guide.")
+        return
+
+    cmds.select(settings_root, r=True)
     guide_manager.inspect_settings()
+
+
+_CURVE_SHAPE_TYPES = ("nurbsCurve", "bezierCurve")
+
+
+def _has_curve_shape(node):
+    shapes = cmds.listRelatives(
+        node,
+        shapes=True,
+        fullPath=True,
+        noIntermediate=True,
+    )
+    if not shapes:
+        return False
+    for shape in shapes:
+        if cmds.nodeType(shape) in _CURVE_SHAPE_TYPES:
+            return True
+    return False
+
+
+def _is_rig_root_node(node):
+    if not node or not cmds.objExists(node):
+        return False
+    if cmds.attributeQuery("is_rig", node=node, exists=True):
+        return bool(cmds.getAttr(f"{node}.is_rig"))
+    return False
+
+
+def _list_rig_control_nodes(rig_root):
+    """Return mGear controls under rig_root that have curve shapes."""
+    if not rig_root or not cmds.objExists(rig_root):
+        return []
+
+    descendants = cmds.listRelatives(
+        rig_root,
+        allDescendents=True,
+        type="transform",
+        fullPath=True,
+    )
+    if not descendants:
+        return []
+
+    controls = []
+    for node in descendants:
+        if node.rsplit("|", 1)[-1].endswith("_controlBuffer"):
+            continue
+        if not cmds.attributeQuery("isCtl", node=node, exists=True):
+            continue
+        if _has_curve_shape(node):
+            controls.append(node)
+    return controls
+
+
+def _collect_extract_targets(selection):
+    """Build extract targets, expanding rig root to all controller shapes."""
+    targets = []
+    seen = set()
+
+    if not selection:
+        for rig_root in _list_built_rig_transforms():
+            for control in _list_rig_control_nodes(rig_root):
+                if control not in seen:
+                    targets.append(control)
+                    seen.add(control)
+        return targets
+
+    for node in selection:
+        if _is_rig_root_node(node):
+            for control in _list_rig_control_nodes(node):
+                if control not in seen:
+                    targets.append(control)
+                    seen.add(control)
+            continue
+        if node not in seen:
+            targets.append(node)
+            seen.add(node)
+    return targets
+
+
+def _is_extractable_control(node):
+    if not cmds.objExists(node):
+        return False
+    return cmds.attributeQuery("isCtl", node=node, exists=True)
+
+
+def _extract_shape_to_buffer(node, controllers_org):
+    """Extract one control or guide shape into controllers_org."""
+    control = pm.PyNode(node)
+    short_name = control.name().split("|")[-1]
+    buffer_name = f"{short_name}_controlBuffer"
+    try:
+        old = pm.PyNode(f"{controllers_org.name()}|{buffer_name}")
+        pm.delete(old)
+    except (TypeError, RuntimeError):
+        pass
+
+    new = pm.duplicate(control)[0]
+    pm.parent(new, controllers_org, a=True)
+    pm.rename(new, buffer_name)
+    to_delete = new.getChildren(type="transform", fullPath=True)
+    if to_delete:
+        pm.delete(to_delete)
+    try:
+        for obj_set in control.instObjGroups[0].listConnections(type="objectSet"):
+            pm.sets(obj_set, remove=new)
+    except TypeError:
+        pass
 
 
 def extract_controls():
     """Extract selected controls to controllers_org buffers.
 
-    Same as mGear menu: Shifter > Extract Controls.
+    When nothing is selected or the rig root is selected, all controller
+    shapes under the built rig are extracted.
     """
-    if not cmds.ls(sl=True):
-        cmds.warning("Nothing selected.")
-        return
+    selection = cmds.ls(sl=True, long=True)
 
-    if not cmds.objExists("controllers_org"):
+    try:
+        controllers_org = pm.PyNode("controllers_org")
+    except TypeError:
         cmds.warning(
             "No controllers_org group in the scene or the group is not unique."
         )
         return
 
-    try:
-        guide_manager.extract_controls()
-    except (TypeError, RuntimeError) as exc:
-        cmds.warning(str(exc))
+    targets = _collect_extract_targets(selection)
+    if not targets:
+        if not selection:
+            cmds.warning("No built rig found in the scene.")
+        else:
+            cmds.warning("No controller shapes found to extract.")
+        return
+
+    extracted = 0
+    for node in targets:
+        if not _is_extractable_control(node):
+            cmds.warning(f"{node}: Is not a valid mGear control.")
+            continue
+        _extract_shape_to_buffer(node, controllers_org)
+        extracted += 1
+
+    if extracted:
+        cmds.select(targets, r=True)
+    else:
+        cmds.warning("No controls were extracted.")
+
+
+def _parse_custom_step_scripts(step_value):
+    """Return active custom step paths using mGear's parser."""
+    text = str(step_value).strip() if step_value else ""
+    if not text:
+        return []
+    return shifter.Rig()._parseCustomSteps(text)
 
 
 def _has_custom_step_scripts(step_value):
-    text = str(step_value).strip()
-    if not text:
-        return False
-    for entry in text.split(","):
-        if entry.strip():
-            return True
-    return False
+    return len(_parse_custom_step_scripts(step_value)) > 0
+
+
+def _get_custom_step_strings_from_guide(guide):
+    """Return pre/post custom step strings effective for the guide.
+    """
+    pre = ""
+    post = ""
+    if guide.hasAttr("preCustomStep"):
+        pre = guide.attr("preCustomStep").get() or ""
+    if guide.hasAttr("postCustomStep"):
+        post = guide.attr("postCustomStep").get() or ""
+
+    use_blueprint = (
+        guide.hasAttr("use_blueprint")
+        and guide.attr("use_blueprint").get()
+        and guide.hasAttr("blueprint_path")
+    )
+    if not use_blueprint:
+        return pre, post
+
+    blueprint_path = guide.attr("blueprint_path").get()
+    if not blueprint_path:
+        return pre, post
+
+    blueprint_conf = shifter_guide.load_blueprint_guide(blueprint_path)
+    if not blueprint_conf:
+        return pre, post
+
+    param_values = blueprint_conf.get("guide_root", {}).get("param_values", {})
+    if not param_values:
+        return pre, post
+
+    override_pre = (
+        guide.hasAttr("override_pre_custom_steps")
+        and guide.attr("override_pre_custom_steps").get()
+    )
+    override_post = (
+        guide.hasAttr("override_post_custom_steps")
+        and guide.attr("override_post_custom_steps").get()
+    )
+
+    if not override_pre:
+        pre = param_values.get("preCustomStep", pre) or ""
+    if not override_post:
+        post = param_values.get("postCustomStep", post) or ""
+
+    return pre, post
 
 
 def has_full_build_steps():
-    """Return whether guide has both pre and post custom scripts configured."""
+    """Return whether guide has pre or post custom scripts configured."""
     if not cmds.objExists("guide"):
         return False
 
     guide = pm.PyNode("guide")
     if not guide.hasAttr("ismodel"):
         return False
-    if not guide.hasAttr("preCustomStep") or not guide.hasAttr("postCustomStep"):
+    if not guide.hasAttr("preCustomStep") and not guide.hasAttr("postCustomStep"):
         return False
 
-    pre_steps = guide.attr("preCustomStep").get()
-    post_steps = guide.attr("postCustomStep").get()
+    pre_steps, post_steps = _get_custom_step_strings_from_guide(guide)
     return (
         _has_custom_step_scripts(pre_steps)
-        and _has_custom_step_scripts(post_steps)
+        or _has_custom_step_scripts(post_steps)
     )
+
+
+def update_component_type():
+    """Open mGear Update Component Type UI for the current selection."""
+    compatible_comp_dagmenu.update_component_type_and_update_guide_with_dagmenu()
+
+
+def _resolve_rig_transform_name(rig_entry):
+    """Return rig transform name from a get_rig() entry (node or attribute plug)."""
+    if hasattr(rig_entry, "node"):
+        return rig_entry.node().name()
+
+    name = rig_entry.name() if hasattr(rig_entry, "name") else str(rig_entry)
+    if "." in name:
+        return name.split(".", 1)[0]
+    return name
+
+
+def _list_built_rig_transforms():
+    """Return transform node names for built mGear rigs in the scene."""
+    transforms = []
+    seen = set()
+    for rig_entry in shifter_utils.get_rig():
+        rig_name = _resolve_rig_transform_name(rig_entry)
+        if rig_name and rig_name not in seen and cmds.objExists(rig_name):
+            seen.add(rig_name)
+            transforms.append(rig_name)
+    return transforms
+
+
+def has_built_rig():
+    """Return whether the scene contains a built mGear rig."""
+    return bool(_list_built_rig_transforms())
+
+
+def unbuild_guide():
+    """Unbuild the current rig in the scene, same as Guide Explorer Unbuild."""
+    rig_transforms = _list_built_rig_transforms()
+    if not rig_transforms:
+        cmds.warning("No valid rig has been found in the scene to unbuild.")
+        return
+
+    cmds.select(clear=True)
+    shifter_utils.delete_nodes(rig_transforms)
 
 
 def vanilla_build_guide():
@@ -787,9 +1089,9 @@ def vanilla_build_guide():
 
 
 def full_build_guide():
-    """Build rig from guide with pre/post custom steps enabled."""
+    """Build rig from guide with configured pre/post custom steps enabled."""
     if not has_full_build_steps():
-        cmds.warning("Pre and Post custom scripts are not configured.")
+        cmds.warning("Pre or Post custom scripts are not configured.")
         return
 
     cleanup_pre_settings_templates()
@@ -803,16 +1105,30 @@ def full_build_guide():
         cmds.warning("guide is not a valid Shifter guide model.")
         return
 
+    pre_steps, post_steps = _get_custom_step_strings_from_guide(guide)
+    has_pre = _has_custom_step_scripts(pre_steps)
+    has_post = _has_custom_step_scripts(post_steps)
+
     cmds.select("guide", r=True)
 
     pre_enabled = guide.attr("doPreCustomStep").get()
     post_enabled = guide.attr("doPostCustomStep").get()
 
     try:
-        guide.attr("doPreCustomStep").set(True)
-        guide.attr("doPostCustomStep").set(True)
+        guide.attr("doPreCustomStep").set(has_pre)
+        guide.attr("doPostCustomStep").set(has_post)
         shifter.log_window()
         shifter.Rig().buildFromSelection()
     finally:
         guide.attr("doPreCustomStep").set(pre_enabled)
         guide.attr("doPostCustomStep").set(post_enabled)
+
+
+def replace_control_shape():
+    """Run mGear rigbits Replace Shape on the current selection."""
+    rigbits.replaceShape()
+
+
+def mirror_control_shape():
+    """Open mGear rigbits Mirror Controls Shape UI."""
+    mirror_controls.show()

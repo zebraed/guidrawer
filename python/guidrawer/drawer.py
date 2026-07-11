@@ -2,6 +2,7 @@ from maya import cmds
 
 from . import exception
 from . import guide_align
+from . import controller_shape_tools
 from . import loader
 from . import shifter_bridge as bridge
 
@@ -82,20 +83,21 @@ class Guidrawer:
             comp_type (str): Component type or preset name.
             name (str): Component name. Empty uses mGear default name.
             side (str): Side (C / L / R).
-            parent_root (str): Parent guide node name.
+            parent_root (str): Parent guide node name. Empty uses guide model
+                in the scene, or creates a new guide hierarchy if none exists.
             idx (int): Component index.
             **opt: Reserved for preset modules.
 
         Returns:
             str or None: New guide root name.
         """
-        parent_root = bridge.validate_guide(parent_root)
-        if not parent_root:
+        draw_parent = bridge.resolve_draw_parent(parent_root)
+        if parent_root and str(parent_root).strip() and not draw_parent:
             return None
 
         preset = self._presets.get(comp_type)
         if preset:
-            return preset.draw_guide(name, side, idx, parent_root, **opt)
+            return preset.draw_guide(name, side, idx, draw_parent, **opt)
 
         if comp_type not in bridge.list_component_types():
             raise exception.ComponentNotFoundError(
@@ -108,7 +110,7 @@ class Guidrawer:
             chain_opt = bridge.get_pre_settings_chain_opt(mgear_type)
 
         guide_root = bridge.draw_component(
-            parent_root, mgear_type, chain_opt
+            draw_parent, mgear_type, chain_opt
         )
         if not guide_root:
             return None
@@ -193,29 +195,44 @@ class Guidrawer:
                 bridge.delete_component_keep_children(root)
 
     def open_settings(self, nodes):
-        """Open the mGear settings UI for the first selected component."""
+        """Open the mGear settings UI for the first selected guide or component."""
+        if not nodes:
+            cmds.warning("Nothing selected.")
+            return
         for node in nodes:
-            root = bridge.get_component_root(node)
+            root = bridge.get_settings_root(node)
             if root:
                 bridge.open_component_settings(root)
                 return
         cmds.warning("Can not got guide root.")
 
     def extract_controls(self):
-        """Extract selected mGear controls to controllers_org buffers."""
+        """Extract selected controls, or all rig controls when nothing or rig root is selected."""
         bridge.extract_controls()
+
+    def update_component_type(self):
+        """Open mGear Update Component Type UI for the current selection."""
+        bridge.update_component_type()
 
     def vanilla_build_guide(self):
         """Build rig from guide without pre/post custom steps."""
         bridge.vanilla_build_guide()
 
     def has_full_build_steps(self):
-        """Return whether the scene guide has pre/post custom scripts."""
+        """Return whether the scene guide has pre or post custom scripts."""
         return bridge.has_full_build_steps()
+
+    def has_built_rig(self):
+        """Return whether the scene contains a built mGear rig."""
+        return bridge.has_built_rig()
 
     def full_build_guide(self):
         """Build rig from guide with pre/post custom steps enabled."""
         bridge.full_build_guide()
+
+    def unbuild_guide(self):
+        """Unbuild the current rig in the scene."""
+        bridge.unbuild_guide()
 
     def fit_to_pos(self):
         guide_align.fit_to_pos()
@@ -256,3 +273,18 @@ class Guidrawer:
         cmds.manipMoveContext("Move", e=True, pcp=enabled)
         cmds.manipRotateContext("Rotate", e=True, pcp=enabled)
         cmds.manipScaleContext("Scale", e=True, pcp=enabled)
+
+    def select_controller_shapes(self):
+        controller_shape_tools.select_controller_shapes()
+
+    def scale_controller_shapes(self, delta):
+        controller_shape_tools.scale_shapes(delta)
+
+    def toggle_controller_edit_mode(self):
+        controller_shape_tools.toggle_edit_mode()
+
+    def replace_control_shape(self):
+        bridge.replace_control_shape()
+
+    def mirror_control_shape(self):
+        bridge.mirror_control_shape()
