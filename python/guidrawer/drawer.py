@@ -214,6 +214,15 @@ class Guidrawer:
         """Open mGear Update Component Type UI for the current selection."""
         bridge.update_component_type()
 
+    def open_guide_symmetry_tool(self):
+        bridge.open_guide_symmetry_tool()
+
+    def open_component_type_lister(self):
+        bridge.open_component_type_lister()
+
+    def open_chain_utils(self):
+        bridge.open_chain_utils()
+
     def vanilla_build_guide(self):
         """Build rig from guide without pre/post custom steps."""
         bridge.vanilla_build_guide()
@@ -263,6 +272,9 @@ class Guidrawer:
 
     def rotate_axis(self, axis, degrees):
         guide_align.rotate_selected(axis, degrees)
+
+    def align_curve(self):
+        guide_align.align_curve()
 
     def get_preserve_children(self):
         """Return Preserve Children state for Move/Rotate/Scale tools."""

@@ -5,6 +5,8 @@ import re
 from maya import cmds
 import maya.api.OpenMaya as om
 
+from . import shifter_bridge as bridge
+
 
 _SURFACE_SHAPE_TYPES = ("mesh", "nurbsCurve", "nurbsSurface")
 _COMPONENT_PATTERN = re.compile(
@@ -1207,3 +1209,157 @@ def rotate_selected(axis, degrees):
         tm.rotateBy(delta, om.MSpace.kObject)
         cmds.xform(target, m=list(tm.asMatrix()), os=True)
         _normalize_local_rotate_attr(target)
+
+
+def _is_guide_component_node(node):
+    """Return True when node belongs to a mGear guide component."""
+    if bridge.get_component_root(node):
+        return True
+    if cmds.objExists(node) and cmds.objExists(f"{node}.comp_type"):
+        return True
+    return False
+
+
+def _parse_align_curve_selection(selection):
+    """Split selection into one alignment curve and guide nodes.
+
+    Guide components may also have nurbsCurve shapes, so membership in a
+    guide component takes priority over curve detection.
+    """
+    curve_node = None
+    guide_nodes = []
+    for node in selection:
+        if _is_guide_component_node(node):
+            guide_nodes.append(node)
+            continue
+        if _is_nurbs_curve_target(node):
+            if curve_node is not None:
+                return None, []
+            curve_node = node
+    return curve_node, guide_nodes
+
+
+def _is_nurbs_curve_target(node):
+    shape = _get_surface_shape(node)
+    if shape and cmds.nodeType(shape) == "nurbsCurve":
+        return True
+    if not _is_component(node):
+        return False
+    if ".cv[" in node:
+        shape = _get_surface_shape(node)
+        return shape is not None and cmds.nodeType(shape) == "nurbsCurve"
+    return False
+
+
+def _get_nurbs_curve_dag_path(node):
+    dag_path = _get_surface_dag_path(node)
+    if not dag_path:
+        return None
+    if dag_path.apiType() != om.MFn.kNurbsCurve:
+        return None
+    return dag_path
+
+
+def _get_curve_start_world_position(curve_node):
+    dag_path = _get_nurbs_curve_dag_path(curve_node)
+    if not dag_path:
+        return None
+
+    curve_fn = om.MFnNurbsCurve(dag_path)
+    param = curve_fn.findParamFromLength(0.0)
+    point = curve_fn.getPointAtParam(param, om.MSpace.kWorld)
+    return _mpoint_to_list(point)
+
+
+def _get_uniform_positions_on_nurbs_curve(curve_node, num_positions):
+    if num_positions <= 0:
+        return []
+
+    if num_positions == 1:
+        start = _get_curve_start_world_position(curve_node)
+        if start is None:
+            return []
+        return [start]
+
+    dag_path = _get_nurbs_curve_dag_path(curve_node)
+    if not dag_path:
+        return []
+
+    curve_fn = om.MFnNurbsCurve(dag_path)
+    arc_length = curve_fn.length()
+    interval_length = arc_length / float(num_positions - 1)
+    positions = []
+    for index in range(num_positions):
+        param = curve_fn.findParamFromLength(interval_length * index)
+        point = curve_fn.getPointAtParam(param, om.MSpace.kWorld)
+        positions.append(_mpoint_to_list(point))
+    return positions
+
+
+def _collect_guide_component_roots(guide_nodes):
+    comp_roots = []
+    seen = set()
+    for node in guide_nodes:
+        comp_root = bridge.get_component_root(node)
+        if not comp_root:
+            validated = bridge.validate_guide(node)
+            if validated:
+                comp_root = bridge.get_component_root(validated)
+                if not comp_root:
+                    comp_root = validated
+        if not comp_root or comp_root in seen:
+            continue
+        seen.add(comp_root)
+        comp_roots.append(comp_root)
+    return comp_roots
+
+
+def _collect_curve_align_targets(guide_nodes):
+    targets = []
+    for comp_root in _collect_guide_component_roots(guide_nodes):
+        targets.extend(bridge.collect_component_placement_locs(comp_root))
+    return targets
+
+
+def align_curve():
+    """Place selected guides along the selected nurbs curve."""
+    selection = _get_selection()
+    if not selection:
+        return
+
+    curve_node, guide_nodes = _parse_align_curve_selection(selection)
+    if curve_node is None:
+        curve_count = 0
+        for node in selection:
+            if _is_guide_component_node(node):
+                continue
+            if _is_nurbs_curve_target(node):
+                curve_count += 1
+        if curve_count > 1:
+            cmds.warning("Select only one nurbs curve.")
+        else:
+            cmds.warning(
+                "Select one nurbs curve and one or more guide components."
+            )
+        return
+    if not guide_nodes:
+        cmds.warning("Select one or more guide components in addition to the curve.")
+        return
+
+    placement_nodes = _collect_curve_align_targets(guide_nodes)
+    if not placement_nodes:
+        cmds.warning("No guide placement locators found.")
+        return
+
+    positions = _get_uniform_positions_on_nurbs_curve(
+        curve_node,
+        len(placement_nodes),
+    )
+    if len(positions) != len(placement_nodes):
+        cmds.warning("Could not sample positions from the selected curve.")
+        return
+
+    for node, position in zip(placement_nodes, positions):
+        target = _get_movable_transform(node)
+        if target:
+            _set_world_translation(target, position)

@@ -1,21 +1,22 @@
 """Multiple Drawing the mGear's Guide Component."""
+import json
 import os
 
 from maya import cmds
 
 from mgear.vendor.Qt import QtCore, QtGui, QtWidgets
 
-from . import const
-from . import decorator
-from . import drawer
-from . import maya_util
+from .. import const
+from .. import decorator
+from .. import drawer
+from .. import maya_util
 from . import model
-from . import shifter_bridge as bridge
+from .. import shifter_bridge as bridge
 from . import widget
 
 
 ICON_PATH = os.path.join(
-    os.path.abspath(os.path.dirname(__file__)),
+    os.path.abspath(os.path.dirname(os.path.dirname(__file__))),
     "icons",
     "guidrawer_icon.svg",
 )
@@ -52,6 +53,10 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__side_cmb_widget = None
         self.__idx_spin_widget = None
         self.__parent_root_le_widget = None
+        self.__auto_side_group = None
+        self.__auto_side_options_widget = None
+        self.__auto_side_parent_rb = None
+        self.__auto_side_pos_rb = None
         self.__pre_settings_btn = None
         self.__reset_pre_settings_btn = None
         self.__create_gd_btn = None
@@ -61,6 +66,9 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__del_gd_btn = None
         self.__del_keep_child_gd_btn = None
         self.__update_component_btn = None
+        self.__guide_symmetry_btn = None
+        self.__component_type_lister_btn = None
+        self.__chain_utils_btn = None
         self.__vanilla_build_btn = None
         self.__full_build_btn = None
         self.__unbuild_btn = None
@@ -76,6 +84,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__rot_x90_btn = None
         self.__rot_y90_btn = None
         self.__rot_z90_btn = None
+        self.__align_crv_btn = None
         self.__solo_move_btn = None
         self.__sel_shape_btn = None
         self.__scale_shape_btn = None
@@ -87,18 +96,9 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__solo_move_size_locked = False
 
         self.__idx_updating = False
+        self.__suppress_next_activate_refresh = False
 
         self._set_window_icon()
-
-        setting_file = os.path.join(
-            os.getenv("MAYA_APP_DIR"),
-            f"{self.object_name}_windowPref.ini",
-        )
-        self.pyside_setting = QtCore.QSettings(
-            setting_file, QtCore.QSettings.IniFormat
-        )
-        if hasattr(self.pyside_setting, "setIniCodec"):
-            self.pyside_setting.setIniCodec("utf-8")
 
         self.__initialize()
         self._setup_focus_clear()
@@ -124,28 +124,104 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             if not icon.isNull():
                 self.setWindowIcon(icon)
 
-    def __comp_type_setting_key(self):
-        return f"{self.object_name}-comp_type"
+    def __settings_key(self):
+        return f"{self.object_name}_settings"
 
-    def __save_comp_type(self, comp_type):
-        if self.pyside_setting and comp_type:
-            self.pyside_setting.setValue(
-                self.__comp_type_setting_key(), comp_type
+    def __window_geometry_for_settings(self):
+        frame = self.frameGeometry()
+        geometry = self.geometry()
+        return {
+            "x": frame.x(),
+            "y": frame.y(),
+            "width": geometry.width(),
+            "height": geometry.height(),
+        }
+
+    def __gather_settings(self):
+        auto_side_mode = self.__get_auto_side_mode()
+        if self.__auto_side_group and not self.__auto_side_group.isChecked():
+            auto_side_mode = None
+
+        return {
+            "window_geometry": self.__window_geometry_for_settings(),
+            "component_type": self.__get_comp_type(),
+            "base_name": self.__get_base_name(),
+            "side": self.__get_side(),
+            "index": self.__get_idx(),
+            "parent_root": self.__get_parent_root(),
+            "auto_side_enabled": bool(
+                self.__auto_side_group
+                and self.__auto_side_group.isChecked()
+            ),
+            "auto_side_mode": auto_side_mode,
+        }
+
+    def __set_combo_text(self, combo, text):
+        if not combo or not text:
+            return
+        index = combo.findText(text)
+        if index >= 0:
+            combo.setCurrentIndex(index)
+
+    def __apply_settings(self, settings):
+        if not isinstance(settings, dict):
+            return
+
+        geometry = settings.get("window_geometry")
+        if isinstance(geometry, dict):
+            self.resize(
+                int(geometry.get("width", self.width())),
+                int(geometry.get("height", self.height())),
+            )
+            self.move(
+                int(geometry.get("x", self.x())),
+                int(geometry.get("y", self.y())),
             )
 
-    def __restore_comp_type(self):
-        if not self.pyside_setting:
-            return
+        self.__set_combo_text(
+            self.__comp_cmb_widget,
+            settings.get("component_type"),
+        )
+        self.__base_name_le_wiget.setText(settings.get("base_name", ""))
+        self.__set_combo_text(self.__side_cmb_widget, settings.get("side"))
+        self.__parent_root_le_widget.setText(settings.get("parent_root", ""))
 
-        saved = self.pyside_setting.value(self.__comp_type_setting_key())
-        if not saved:
-            return
+        auto_side_enabled = bool(settings.get("auto_side_enabled", False))
+        auto_side_mode = settings.get("auto_side_mode")
+        self.__auto_side_group.blockSignals(True)
+        self.__auto_side_parent_rb.blockSignals(True)
+        self.__auto_side_pos_rb.blockSignals(True)
+        self.__auto_side_group.setChecked(auto_side_enabled)
+        self.__auto_side_options_widget.setVisible(auto_side_enabled)
+        if auto_side_mode == "pos":
+            self.__auto_side_pos_rb.setChecked(True)
+        elif auto_side_mode == "parent":
+            self.__auto_side_parent_rb.setChecked(True)
+        else:
+            self.__auto_side_parent_rb.setChecked(False)
+            self.__auto_side_pos_rb.setChecked(False)
+        self.__auto_side_pos_rb.blockSignals(False)
+        self.__auto_side_parent_rb.blockSignals(False)
+        self.__auto_side_group.blockSignals(False)
 
-        items = self.__core.comp_model().items()
-        if saved not in items:
-            return
+        index = settings.get("index")
+        if isinstance(index, int):
+            self.__set_idx(index)
 
-        self.__comp_cmb_widget.setCurrentIndex(items.index(saved))
+    def __save_settings(self):
+        data = self.__gather_settings()
+        cmds.optionVar(sv=(self.__settings_key(), json.dumps(data)))
+
+    def __load_settings(self):
+        key = self.__settings_key()
+        if not cmds.optionVar(exists=key):
+            return
+        raw = cmds.optionVar(q=key)
+        if isinstance(raw, (list, tuple)) and raw:
+            raw = raw[0]
+        if not isinstance(raw, str) or not raw:
+            return
+        self.__apply_settings(json.loads(raw))
 
     def __initialize(self):
         self.__main_widget = QtWidgets.QWidget()
@@ -178,7 +254,6 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__comp_cmb_widget.currentIndexChanged.connect(
             self.__update_pre_settings_btn
         )
-        self.__restore_comp_type()
 
         self.__base_name_le_wiget = QtWidgets.QLineEdit(parent=opt_widget)
         self.__base_name_le_wiget.setPlaceholderText("Set Base Name...")
@@ -237,6 +312,40 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
         main_option_layout.addLayout(opt_layout)
         main_option_layout.addLayout(parentRoot_layout)
+
+        self.__auto_side_group = QtWidgets.QGroupBox("Auto Side Label", parent=opt_widget)
+        self.__auto_side_group.setCheckable(True)
+        self.__auto_side_group.setChecked(False)
+
+        auto_side_group_layout = QtWidgets.QVBoxLayout(self.__auto_side_group)
+        auto_side_group_layout.setContentsMargins(8, 4, 8, 4)
+        auto_side_group_layout.setSpacing(4)
+
+        self.__auto_side_options_widget = QtWidgets.QWidget(
+            parent=self.__auto_side_group
+        )
+        auto_side_layout = QtWidgets.QHBoxLayout(self.__auto_side_options_widget)
+        auto_side_layout.setContentsMargins(0, 0, 0, 0)
+        self.__auto_side_parent_rb = QtWidgets.QRadioButton("from parent")
+        self.__auto_side_pos_rb = QtWidgets.QRadioButton("from pos")
+        auto_side_button_group = QtWidgets.QButtonGroup(self.__auto_side_group)
+        auto_side_button_group.addButton(self.__auto_side_parent_rb)
+        auto_side_button_group.addButton(self.__auto_side_pos_rb)
+        auto_side_layout.addWidget(self.__auto_side_parent_rb)
+        auto_side_layout.addWidget(self.__auto_side_pos_rb)
+        auto_side_layout.addStretch(1)
+        auto_side_group_layout.addWidget(self.__auto_side_options_widget)
+        self.__auto_side_options_widget.setVisible(False)
+
+        self.__auto_side_group.toggled.connect(self.__on_auto_side_enabled)
+        self.__auto_side_parent_rb.toggled.connect(
+            self.__refresh_component_index
+        )
+        self.__auto_side_pos_rb.toggled.connect(
+            self.__refresh_component_index
+        )
+
+        main_option_layout.addWidget(self.__auto_side_group)
 
         self.__create_gd_btn = QtWidgets.QPushButton("Draw", parent=opt_widget)
         self.__create_gd_btn.setIcon(QtGui.QIcon(":/createBin.png"))
@@ -309,6 +418,42 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             lambda x: self.__update_component_type()
         )
 
+        self.__guide_symmetry_btn = QtWidgets.QPushButton("Guide Symmetry")
+        self.__guide_symmetry_btn.setIcon(
+            self.__mgear_icon("mgear_guide_symmetry.svg")
+        )
+        self.__guide_symmetry_btn.clicked.connect(
+            lambda x: self.__open_guide_symmetry_tool()
+        )
+
+        update_tools_layout = QtWidgets.QHBoxLayout()
+        update_tools_layout.setContentsMargins(0, 0, 0, 0)
+        update_tools_layout.addWidget(self.__update_component_btn)
+        update_tools_layout.addWidget(self.__guide_symmetry_btn)
+
+        self.__component_type_lister_btn = QtWidgets.QPushButton(
+            "Comp Type Lister"
+        )
+        self.__component_type_lister_btn.setIcon(
+            self.__mgear_icon("mgear_component_type_lister.svg")
+        )
+        self.__component_type_lister_btn.clicked.connect(
+            lambda x: self.__open_component_type_lister()
+        )
+
+        self.__chain_utils_btn = QtWidgets.QPushButton("Chain Utils")
+        self.__chain_utils_btn.setIcon(
+            self.__mgear_icon("mgear_chain_utils.svg")
+        )
+        self.__chain_utils_btn.clicked.connect(
+            lambda x: self.__open_chain_utils()
+        )
+
+        guide_tools_layout = QtWidgets.QHBoxLayout()
+        guide_tools_layout.setContentsMargins(0, 0, 0, 0)
+        guide_tools_layout.addWidget(self.__component_type_lister_btn)
+        guide_tools_layout.addWidget(self.__chain_utils_btn)
+
         self.__hl_frame3 = widget.HorizontalLine(tools_frame)
 
         self.__vanilla_build_btn = QtWidgets.QPushButton("Vanilla Build")
@@ -336,7 +481,8 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
         tools_inner_layout.addLayout(button_layout)
         tools_inner_layout.addLayout(delete_layout)
-        tools_inner_layout.addWidget(self.__update_component_btn)
+        tools_inner_layout.addLayout(update_tools_layout)
+        tools_inner_layout.addLayout(guide_tools_layout)
         tools_inner_layout.addWidget(self.__hl_frame3)
         tools_inner_layout.addLayout(build_layout)
         tools_inner_layout.addWidget(self.__unbuild_btn)
@@ -435,6 +581,13 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__rot_z90_btn.setIcon(rotate_icon)
         self.__wire_rotate_button(self.__rot_z90_btn, "z")
         align_layout.addWidget(self.__rot_z90_btn, 3, 2)
+
+        self.__align_crv_btn = QtWidgets.QPushButton("Align Crv")
+        self.__align_crv_btn.setIcon(QtGui.QIcon(":/align.png"))
+        self.__align_crv_btn.clicked.connect(
+            lambda x: self.__align_curve()
+        )
+        align_layout.addWidget(self.__align_crv_btn, 4, 0, 1, 3)
 
         for col in range(3):
             align_layout.setColumnStretch(col, 1)
@@ -565,7 +718,6 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
     def __on_comp_type_changed(self, comp_type):
         self.current_comp_type = comp_type
-        self.__save_comp_type(comp_type)
         self.__refresh_component_index()
         self.__update_pre_settings_btn()
 
@@ -602,7 +754,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         next_idx = self.__gd.get_next_component_index(
             comp_type=self.__get_comp_type(),
             name=self.__get_base_name(),
-            side=self.__get_side(),
+            side=self.__resolve_draw_side(),
             parent_root=self.__get_parent_root(),
         )
         self.__set_idx(next_idx)
@@ -615,20 +767,22 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         valid_idx = self.__gd.get_next_component_index(
             comp_type=self.__get_comp_type(),
             name=self.__get_base_name(),
-            side=self.__get_side(),
+            side=self.__resolve_draw_side(),
             parent_root=self.__get_parent_root(),
             start_index=value,
         )
         if valid_idx != value:
             self.__set_idx(valid_idx)
 
-    def __sync_idx_from_created_guide(self, guide_root):
-        if not guide_root or not cmds.objExists(f"{guide_root}.comp_index"):
-            return
+    def __sync_idx_from_created_guide(self, guide_root, side=None):
+        if side is None and guide_root and cmds.objExists(f"{guide_root}.comp_side"):
+            side = cmds.getAttr(f"{guide_root}.comp_side")
+        if side is None:
+            side = self.__resolve_draw_side()
         next_idx = self.__gd.get_next_component_index(
             comp_type=self.__get_comp_type(),
             name=self.__get_base_name(),
-            side=self.__get_side(),
+            side=side,
             parent_root=self.__get_parent_root(),
         )
         self.__set_idx(next_idx)
@@ -638,6 +792,74 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
     def __get_side(self):
         return self.__side_cmb_widget.currentText()
+
+    def __get_auto_side_mode(self):
+        if not self.__auto_side_group or not self.__auto_side_group.isChecked():
+            return None
+        if self.__auto_side_parent_rb and self.__auto_side_parent_rb.isChecked():
+            return "parent"
+        if self.__auto_side_pos_rb and self.__auto_side_pos_rb.isChecked():
+            return "pos"
+        return None
+
+    def __on_auto_side_enabled(self, enabled):
+        if self.__auto_side_options_widget:
+            self.__auto_side_options_widget.setVisible(enabled)
+        if enabled:
+            if (
+                self.__auto_side_parent_rb
+                and self.__auto_side_pos_rb
+                and not self.__auto_side_parent_rb.isChecked()
+                and not self.__auto_side_pos_rb.isChecked()
+            ):
+                self.__auto_side_parent_rb.setChecked(True)
+        self.__refresh_component_index()
+        QtCore.QTimer.singleShot(0, self.__lock_window_height)
+
+    def __get_draw_parent_node(self, parent_root=None):
+        if parent_root is None:
+            parent_root = self.__get_parent_root().strip()
+        else:
+            parent_root = str(parent_root).strip()
+
+        if parent_root:
+            validated = bridge.validate_guide(parent_root)
+            if validated:
+                return validated
+        return bridge.resolve_draw_parent("")
+
+    def __resolve_draw_side(self, parent_root=None, position_node=None):
+        mode = self.__get_auto_side_mode()
+        if mode is None:
+            return self.__get_side()
+
+        if mode == "parent":
+            parent = self.__get_draw_parent_node(parent_root)
+            world_x = bridge.get_node_world_x(parent)
+            return bridge.side_from_world_x(world_x)
+
+        if position_node:
+            world_x = bridge.get_node_world_x(position_node)
+            return bridge.side_from_world_x(world_x)
+
+        selection = cmds.ls(sl=True, fl=True)
+        if selection:
+            world_x = bridge.get_node_world_x(selection[-1])
+            return bridge.side_from_world_x(world_x)
+
+        parent = self.__get_draw_parent_node(parent_root)
+        world_x = bridge.get_node_world_x(parent)
+        return bridge.side_from_world_x(world_x)
+
+    def __get_draw_index(self, side, parent_root=None):
+        if parent_root is None:
+            parent_root = self.__get_parent_root()
+        return self.__gd.get_next_component_index(
+            comp_type=self.__get_comp_type(),
+            name=self.__get_base_name(),
+            side=side,
+            parent_root=parent_root,
+        )
 
     def __get_idx(self):
         return self.__idx_spin_widget.value()
@@ -687,7 +909,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
     def show(self):
         self.restore()
-        self.__refresh_component_index()
+        self.__suppress_next_activate_refresh = True
         self.__sync_solo_move_button()
         self.__update_full_build_btn()
         self.__update_unbuild_btn()
@@ -698,24 +920,26 @@ class GuidrawerUI(QtWidgets.QMainWindow):
     def changeEvent(self, event):
         super().changeEvent(event)
         if event.type() == QtCore.QEvent.WindowActivate:
-            self.__refresh_component_index()
+            if self.__suppress_next_activate_refresh:
+                self.__suppress_next_activate_refresh = False
+            else:
+                self.__refresh_component_index()
             self.__sync_solo_move_button()
             self.__update_pre_settings_btn()
             self.__update_full_build_btn()
             self.__update_unbuild_btn()
 
     def restore(self):
-        if self.pyside_setting:
-            self.restoreGeometry(
-                self.pyside_setting.value(f"{self.object_name}-geom")
-            )
+        try:
+            self.__load_settings()
+        except Exception as exc:
+            cmds.warning(f"Failed to load Guidrawer settings: {exc}")
 
     def closeEvent(self, event):
-        if self.pyside_setting:
-            self.__save_comp_type(self.__get_comp_type())
-            self.pyside_setting.setValue(
-                f"{self.object_name}-geom", self.saveGeometry()
-            )
+        try:
+            self.__save_settings()
+        except Exception as exc:
+            cmds.warning(f"Failed to save Guidrawer settings: {exc}")
         super().closeEvent(event)
 
     def eventFilter(self, obj, event):
@@ -774,15 +998,20 @@ class GuidrawerUI(QtWidgets.QMainWindow):
                 continue
             child.installEventFilter(self)
 
-    def create_guide(self, parent_root=None):
+    def create_guide(self, parent_root=None, position_node=None):
         self.__set_name()
         if parent_root is None:
             parent_root = self.__get_parent_root()
+        side = self.__resolve_draw_side(
+            parent_root=parent_root,
+            position_node=position_node,
+        )
+        idx = self.__get_draw_index(side, parent_root=parent_root)
         guide_name = self.__gd.create_guide(
             comp_type=self.__get_comp_type(),
             name=self.name,
-            side=self.__get_side(),
-            idx=self.__get_idx(),
+            side=side,
+            idx=idx,
             parent_root=parent_root,
         )
         if guide_name:
@@ -790,7 +1019,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
                 self.__get_comp_type(),
                 guide_name,
             )
-        self.__sync_idx_from_created_guide(guide_name)
+        self.__sync_idx_from_created_guide(guide_name, side=side)
         return guide_name
 
     @decorator.undo
@@ -816,7 +1045,10 @@ class GuidrawerUI(QtWidgets.QMainWindow):
                 draw_parent = bridge.get_draw_parent_from_selection(i_node)
                 if draw_parent is None:
                     draw_parent = ""
-            guide_name = self.create_guide(parent_root=draw_parent)
+            guide_name = self.create_guide(
+                parent_root=draw_parent,
+                position_node=i_node,
+            )
             if not guide_name:
                 return
             pos = cmds.xform(i_node, q=True, t=True, ws=True)
@@ -878,6 +1110,24 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
     def __update_component_type(self):
         self.__gd.update_component_type()
+
+    def __open_guide_symmetry_tool(self):
+        self.__gd.open_guide_symmetry_tool()
+
+    def __open_component_type_lister(self):
+        self.__gd.open_component_type_lister()
+
+    def __open_chain_utils(self):
+        self.__gd.open_chain_utils()
+
+    @staticmethod
+    def __mgear_icon(icon_name):
+        icon_path = bridge.get_mgear_icon_path(icon_name)
+        if icon_path:
+            icon = QtGui.QIcon(icon_path)
+            if not icon.isNull():
+                return icon
+        return QtGui.QIcon()
 
     @decorator.undo
     def __vanilla_build_guide(self):
@@ -992,6 +1242,10 @@ class GuidrawerUI(QtWidgets.QMainWindow):
     @decorator.undo
     def __rotate_axis(self, axis, degrees):
         self.__gd.rotate_axis(axis, degrees)
+
+    @decorator.undo
+    def __align_curve(self):
+        self.__gd.align_curve()
 
 
 def show(*args):

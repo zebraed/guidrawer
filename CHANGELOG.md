@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-07-12] - Version 3.1.0
+
+- Draw without selection: place at guide model default, at parent-space origin when parent is set, or under selected guide when parent field is empty
+- When parent field is empty, use selected guide (or its component root) as draw parent
+- Added **Auto Side Label**: optional L/R/C from parent world X or placement world X (X=0 → C); index resolved per draw side
+- UI settings persisted via Maya `optionVar` (JSON); removed `QSettings` / `.ini` — base name, parent guide, side, index, component type, Auto Side state, window geometry
+- Added **Controller Shape Tools**: Sel Shape, Scale Shape (±0.1 in object space), Edit (object/component mode toggle), Replace / Mirror Shape (rigbits), Extr. Ctrl moved from Guide Tools
+- **Extr. Ctrl**: extract all rig controls when nothing is selected or when rig root is selected (`isCtl` under `is_rig`)
+- Added **Align Crv** (Placement Tools): distribute guide placement locs along a non-guide NURBS curve; chain components use chain locs; curve vs guide distinguished by component membership
+- Guide Tools: **Update Component**, **Guide Symmetry**, **Component Type Lister**, **Chain Utils**
+- Added **Unbuild**
+
 ## [2026-07-05] - Version 3.0.0
 
 - Added guide alignment tools (`guide_align`): Fit/Mid Pos, Fit Nearest (mesh / nurbsCurve / nurbsSurface), Align/Mid/Nearest Rot, Aim X/Y/Z, and 90° axis rotation

@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from maya import cmds
 import mgear
 from mgear.compatible import compatible_comp_dagmenu
+from mgear.core import dag
 from mgear.core import pyqt
 from mgear.vendor.Qt import QtCore
 import mgear.pymaya as pm
@@ -17,6 +18,10 @@ from mgear.shifter import guide as shifter_guide
 from mgear.shifter import guide_manager
 from mgear.shifter import utils as shifter_utils
 from mgear.shifter.component import chain_guide_initializer
+from mgear.shifter.guide_explorer import utils as guide_explorer_utils
+from mgear.shifter.guide_tools import chain_utils
+from mgear.shifter.guide_tools import component_type_lister
+from mgear.shifter.guide_tools import guide_symmetry_tool
 import mgear.rigbits as rigbits
 from mgear.rigbits import mirror_controls
 
@@ -199,6 +204,54 @@ def validate_guide(root):
     return None
 
 
+def _is_dag_component(name):
+    if not name or "." not in name:
+        return False
+    return "[" in name.split(".", 1)[1]
+
+
+def _get_node_world_position(node):
+    """Return world position for a transform or DAG component."""
+    if not node:
+        return None
+
+    if _is_dag_component(node):
+        try:
+            return cmds.pointPosition(node, w=True)
+        except RuntimeError:
+            return None
+
+    if not cmds.objExists(node):
+        return None
+
+    node_type = cmds.nodeType(node)
+    if node_type in ("mesh", "nurbsCurve", "nurbsSurface"):
+        parents = cmds.listRelatives(node, parent=True, fullPath=True)
+        if parents:
+            node = parents[0]
+        else:
+            return None
+
+    return cmds.xform(node, q=True, ws=True, t=True)
+
+
+def get_node_world_x(node):
+    """Return world-space X translation of a node or component."""
+    position = _get_node_world_position(node)
+    if not position:
+        return 0.0
+    return position[0]
+
+
+def side_from_world_x(x, tolerance=1e-6):
+    """Return mGear side label from world-space X position."""
+    if abs(x) <= tolerance:
+        return "C"
+    if x > 0.0:
+        return "L"
+    return "R"
+
+
 def get_component_root(node):
     """Walk up from node and return the component root with comp_type.
 
@@ -219,6 +272,39 @@ def get_component_root(node):
             return candidate
         parts.pop()
     return None
+
+
+def collect_component_placement_locs(comp_root):
+    """Return placement locator paths for a component guide root.
+
+    Chain components return all chain placement locators. Other components
+    return the primary root locator only.
+    """
+    full_paths = cmds.ls(comp_root, l=True)
+    if not full_paths:
+        return []
+
+    comp_root = full_paths[0]
+    if not cmds.objExists(f"{comp_root}.comp_type"):
+        return [comp_root]
+
+    comp_type = cmds.getAttr(f"{comp_root}.comp_type")
+    comp_guide = get_component_guide(comp_type)
+    comp_guide.setFromHierarchy(pm.PyNode(comp_root))
+    if not comp_guide.valid or not comp_guide.guide_locators:
+        return [comp_root]
+
+    locs = []
+    for loc_name in comp_guide.guide_locators:
+        node = dag.findChild(comp_guide.model, loc_name)
+        if node:
+            locs.append(node.longName())
+
+    if not locs:
+        return [comp_root]
+    if is_chain_type(comp_type):
+        return locs
+    return [locs[0]]
 
 
 def get_draw_parent_from_selection(node):
@@ -1014,6 +1100,29 @@ def has_full_build_steps():
 def update_component_type():
     """Open mGear Update Component Type UI for the current selection."""
     compatible_comp_dagmenu.update_component_type_and_update_guide_with_dagmenu()
+
+
+def get_mgear_icon_path(icon_name):
+    """Return absolute path to an mGear icon file, or None."""
+    path = guide_explorer_utils.get_mgear_icon_path(icon_name)
+    if path:
+        return str(path)
+    return None
+
+
+def open_guide_symmetry_tool():
+    """Open mGear Guide Symmetry Tool."""
+    guide_symmetry_tool.open_shifter_mirror_checker()
+
+
+def open_component_type_lister():
+    """Open mGear Component Type Lister."""
+    component_type_lister.show()
+
+
+def open_chain_utils():
+    """Open mGear Chain Utils."""
+    chain_utils.open_chain_utils()
 
 
 def _resolve_rig_transform_name(rig_entry):
