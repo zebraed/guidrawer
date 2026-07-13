@@ -1,5 +1,10 @@
 # Changelog
 
+## [2026-07-14] - Version 3.1.1
+
+- Full Build: skip restoring guide custom-step flags when Post custom steps delete the guide
+- Full Build: suppress mGear script editor log by default; right-click to build with log
+
 ## [2026-07-12] - Version 3.1.0
 
 - Draw without selection: place at guide model default, at parent-space origin when parent is set, or under selected guide when parent field is empty

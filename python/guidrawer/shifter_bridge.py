@@ -1164,6 +1164,21 @@ def unbuild_guide():
     shifter_utils.delete_nodes(rig_transforms)
 
 
+def _restore_guide_custom_step_flags(pre_enabled, post_enabled):
+    """Restore guide custom step flags when the guide still exists."""
+    if not cmds.objExists("guide"):
+        return
+
+    guide = pm.PyNode("guide")
+    if not guide.hasAttr("doPreCustomStep"):
+        return
+    if not guide.hasAttr("doPostCustomStep"):
+        return
+
+    guide.attr("doPreCustomStep").set(pre_enabled)
+    guide.attr("doPostCustomStep").set(post_enabled)
+
+
 def vanilla_build_guide():
     """Build rig from guide with pre/post custom steps disabled.
 
@@ -1193,12 +1208,15 @@ def vanilla_build_guide():
             shifter.log_window()
             shifter.Rig().buildFromSelection()
     finally:
-        guide.attr("doPreCustomStep").set(pre_enabled)
-        guide.attr("doPostCustomStep").set(post_enabled)
+        _restore_guide_custom_step_flags(pre_enabled, post_enabled)
 
 
-def full_build_guide():
-    """Build rig from guide with configured pre/post custom steps enabled."""
+def full_build_guide(with_log=False):
+    """Build rig from guide with configured pre/post custom steps enabled.
+
+    Args:
+        with_log (bool): When True, mGear build log is written to the script editor.
+    """
     if not has_full_build_steps():
         cmds.warning("Pre or Post custom scripts are not configured.")
         return
@@ -1226,11 +1244,15 @@ def full_build_guide():
     try:
         guide.attr("doPreCustomStep").set(has_pre)
         guide.attr("doPostCustomStep").set(has_post)
-        shifter.log_window()
-        shifter.Rig().buildFromSelection()
+        if with_log:
+            shifter.log_window()
+            shifter.Rig().buildFromSelection()
+        else:
+            with _disabled_mgear_log():
+                shifter.log_window()
+                shifter.Rig().buildFromSelection()
     finally:
-        guide.attr("doPreCustomStep").set(pre_enabled)
-        guide.attr("doPostCustomStep").set(post_enabled)
+        _restore_guide_custom_step_flags(pre_enabled, post_enabled)
 
 
 def replace_control_shape():

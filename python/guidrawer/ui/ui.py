@@ -467,6 +467,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__full_build_btn.clicked.connect(
             lambda x: self.__full_build_guide()
         )
+        self.__wire_full_build_button(self.__full_build_btn)
 
         build_layout = QtWidgets.QHBoxLayout()
         build_layout.setContentsMargins(0, 0, 0, 0)
@@ -1134,8 +1135,8 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__gd.vanilla_build_guide()
         self.__update_unbuild_btn()
 
-    def __full_build_guide(self):
-        self.__gd.full_build_guide()
+    def __full_build_guide(self, with_log=False):
+        self.__gd.full_build_guide(with_log=with_log)
         self.__update_unbuild_btn()
 
     @decorator.undo
@@ -1237,6 +1238,12 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         btn.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         btn.customContextMenuRequested.connect(
             lambda pos: self.__scale_controller_shapes(-0.1)
+        )
+
+    def __wire_full_build_button(self, btn):
+        btn.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        btn.customContextMenuRequested.connect(
+            lambda pos: self.__full_build_guide(with_log=True)
         )
 
     @decorator.undo

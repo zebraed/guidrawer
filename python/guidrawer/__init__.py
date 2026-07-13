@@ -1,6 +1,6 @@
 __author__ = "zebraed"
 __description__ = "mGear Guide Drawer Tools"
-__version__ = "3.1.0"
+__version__ = "3.1.1"
 __license__ = "MIT"
 __copyright__ = "Copyright 2022-2026 zebraed"
 

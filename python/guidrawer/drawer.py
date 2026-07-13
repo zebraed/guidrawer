@@ -235,9 +235,9 @@ class Guidrawer:
         """Return whether the scene contains a built mGear rig."""
         return bridge.has_built_rig()
 
-    def full_build_guide(self):
+    def full_build_guide(self, with_log=False):
         """Build rig from guide with pre/post custom steps enabled."""
-        bridge.full_build_guide()
+        bridge.full_build_guide(with_log=with_log)
 
     def unbuild_guide(self):
         """Unbuild the current rig in the scene."""
