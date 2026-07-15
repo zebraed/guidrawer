@@ -1,5 +1,9 @@
 # Changelog
 
+## [2026-07-16] - Version 3.1.2
+
+- Vanilla Build: build selected guide component subtree; Settings opens Guide Top when nothing is selected
+
 ## [2026-07-14] - Version 3.1.1
 
 - Full Build: skip restoring guide custom-step flags when Post custom steps delete the guide
