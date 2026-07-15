@@ -857,6 +857,28 @@ def apply_pre_settings(comp_type, target_root):
     return True
 
 
+def open_settings_from_selection(nodes):
+    """Open mGear settings for the current selection.
+
+    When nothing is selected, opens Guide Top settings on the guide model.
+    """
+    if not nodes:
+        if cmds.objExists("guide"):
+            guide = pm.PyNode("guide")
+            if guide.hasAttr("ismodel"):
+                open_component_settings("guide")
+                return
+        cmds.warning("Nothing selected.")
+        return
+
+    for node in nodes:
+        settings_root = get_settings_root(node)
+        if settings_root:
+            open_component_settings(settings_root)
+            return
+    cmds.warning("The selected object is not part of component guide.")
+
+
 def open_component_settings(root):
     """Open mGear component or guide root settings UI.
 
@@ -1180,10 +1202,11 @@ def _restore_guide_custom_step_flags(pre_enabled, post_enabled):
 
 
 def vanilla_build_guide():
-    """Build rig from guide with pre/post custom steps disabled.
+    """Build rig from current selection with pre/post custom steps disabled.
 
-    Selects ``guide``, temporarily disables custom step flags, builds,
-    then restores the original guide settings.
+    Matches mGear behavior: builds the selected guide component and its
+    children. If nothing is selected, falls back to the ``guide`` model.
+    Custom step flags are temporarily disabled, then restored.
     """
     cleanup_pre_settings_templates()
 
@@ -1195,8 +1218,6 @@ def vanilla_build_guide():
     if not guide.hasAttr("ismodel"):
         cmds.warning("guide is not a valid Shifter guide model.")
         return
-
-    cmds.select("guide", r=True)
 
     pre_enabled = guide.attr("doPreCustomStep").get()
     post_enabled = guide.attr("doPostCustomStep").get()

@@ -196,15 +196,7 @@ class Guidrawer:
 
     def open_settings(self, nodes):
         """Open the mGear settings UI for the first selected guide or component."""
-        if not nodes:
-            cmds.warning("Nothing selected.")
-            return
-        for node in nodes:
-            root = bridge.get_settings_root(node)
-            if root:
-                bridge.open_component_settings(root)
-                return
-        cmds.warning("Can not got guide root.")
+        bridge.open_settings_from_selection(nodes)
 
     def extract_controls(self):
         """Extract selected controls, or all rig controls when nothing or rig root is selected."""
@@ -224,7 +216,7 @@ class Guidrawer:
         bridge.open_chain_utils()
 
     def vanilla_build_guide(self):
-        """Build rig from guide without pre/post custom steps."""
+        """Build from selection without pre/post custom steps (mGear-like)."""
         bridge.vanilla_build_guide()
 
     def has_full_build_steps(self):
