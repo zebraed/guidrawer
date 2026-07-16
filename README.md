@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="python/guidrawer/icons/guidrawer_icon.svg" alt="guidrawerLogo" width="96">
+</p>
+
 # Guidrawer
 
 Guidrawer is a utility tool for the rigging framework [mGear](https://github.com/mgear-dev/mgear). It is designed to assist "custom" guide drawing during rigging operations on Maya.
