@@ -52,3 +52,7 @@ def draw_guide(name, side, idx, parent_root, **opt):
 ```
 
 See `guidrawer/component/two_control_01.py` for a working example.
+
+## License
+
+[MIT License](LICENSE)
