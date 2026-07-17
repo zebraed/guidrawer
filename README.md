@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="python/guidrawer/icons/guidrawer_icon.svg" alt="guidrawerLogo" width="96">
+  <img src="python/guidrawer/ui/icons/guidrawer_icon.svg" alt="guidrawerLogo" width="96">
 </p>
 
 # Guidrawer
