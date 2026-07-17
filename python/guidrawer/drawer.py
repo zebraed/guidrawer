@@ -241,6 +241,9 @@ class Guidrawer:
     def align_mid_pos(self):
         guide_align.align_mid_pos()
 
+    def align_mid_pos_bbox(self):
+        guide_align.align_mid_pos_bbox()
+
     def fit_nearest(self):
         guide_align.fit_nearest()
 

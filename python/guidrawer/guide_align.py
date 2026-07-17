@@ -890,18 +890,21 @@ def fit_to_pos():
 
 
 def align_mid_pos():
-    """Move the last selection to the average position of the others."""
+    """Move the first selection to the average position of the others.
+
+    Selection order matches other placement tools: the object to move
+    first, then the mid source elements.
+    """
     selection = _get_selection()
     if not selection:
         return
     if len(selection) < 2:
-        cmds.warning("Select two or more elements.")
+        cmds.warning("Select a guide, then mid source elements.")
         return
 
-    last_node = selection[-1]
-    others = selection[:-1]
+    mover = selection[0]
     positions = []
-    for node in others:
+    for node in selection[1:]:
         position = _get_world_position(node)
         if position:
             positions.append(position)
@@ -910,9 +913,63 @@ def align_mid_pos():
     if not average_pos:
         return
 
-    target = _get_movable_transform(last_node)
+    target = _get_movable_transform(mover)
     if target:
         _set_world_translation(target, average_pos)
+
+
+def _get_world_bounding_box_center(nodes):
+    """Return world-space center of the combined bounding box."""
+    if not nodes:
+        return None
+    try:
+        bbox = cmds.exactWorldBoundingBox(*nodes)
+    except RuntimeError:
+        return None
+    return [
+        (bbox[0] + bbox[3]) * 0.5,
+        (bbox[1] + bbox[4]) * 0.5,
+        (bbox[2] + bbox[5]) * 0.5,
+    ]
+
+
+def _list_transform_nodes(nodes):
+    """Return unique transform nodes from the given selection."""
+    transforms = []
+    seen = set()
+    for node in nodes:
+        transform = _get_transform_node(node)
+        if not transform:
+            continue
+        if transform not in seen:
+            transforms.append(transform)
+            seen.add(transform)
+    return transforms
+
+
+def align_mid_pos_bbox():
+    """Move the first selection to the bbox center of the other transforms."""
+    selection = _get_selection()
+    if not selection:
+        return
+    if len(selection) < 2:
+        cmds.warning("Select a guide, then mid source transforms.")
+        return
+
+    mover = selection[0]
+    transforms = _list_transform_nodes(selection[1:])
+    if not transforms:
+        cmds.warning("No transform nodes found in mid sources.")
+        return
+
+    center = _get_world_bounding_box_center(transforms)
+    if not center:
+        cmds.warning("Could not get bounding box center.")
+        return
+
+    target = _get_movable_transform(mover)
+    if target:
+        _set_world_translation(target, center)
 
 
 def fit_nearest():
@@ -979,18 +1036,21 @@ def align_rot():
 
 
 def align_mid_rot():
-    """Rotate the last selection to the average rotation of the others."""
+    """Rotate the first selection to the average rotation of the others.
+
+    Selection order matches other placement tools: the object to rotate
+    first, then the mid source elements.
+    """
     selection = _get_selection()
     if not selection:
         return
     if len(selection) < 2:
-        cmds.warning("Select two or more elements.")
+        cmds.warning("Select a guide, then mid source elements.")
         return
 
-    last_node = selection[-1]
-    others = selection[:-1]
+    mover = selection[0]
     transform_nodes = []
-    for node in others:
+    for node in selection[1:]:
         target = _get_movable_transform(node)
         if target:
             transform_nodes.append(target)
@@ -999,7 +1059,7 @@ def align_mid_rot():
     if not rotation:
         return
 
-    target = _get_movable_transform(last_node)
+    target = _get_movable_transform(mover)
     if target:
         _set_world_rotation_preserve_position(target, rotation)
 

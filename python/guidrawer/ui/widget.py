@@ -13,6 +13,30 @@ class HorizontalLine(QtWidgets.QFrame):
         self.setFrameShadow(QtWidgets.QFrame.Sunken)
 
 
+class ToolPushButton(QtWidgets.QPushButton):
+    """Push button with distinct left-click and right-click actions."""
+
+    rightClicked = QtCore.Signal()
+
+    def __init__(
+        self,
+        text,
+        left_click_text,
+        right_click_text,
+        parent=None,
+    ):
+        super().__init__(text, parent=parent)
+        self.setToolTip(
+            f"Left Click: {left_click_text}\n"
+            f"Right Click: {right_click_text}"
+        )
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._emit_right_clicked)
+
+    def _emit_right_clicked(self, _pos):
+        self.rightClicked.emit()
+
+
 class CollapsibleGroupBox(QtWidgets.QGroupBox):
     """Collapsible group box with transfer_controller-style header."""
 

@@ -464,12 +464,18 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             lambda x: self.__vanilla_build_guide()
         )
 
-        self.__full_build_btn = QtWidgets.QPushButton("Full Build")
+        self.__full_build_btn = widget.ToolPushButton(
+            "Full Build",
+            "Full Build",
+            "Full Build with log",
+        )
         self.__full_build_btn.setIcon(QtGui.QIcon(":/HIKcreateControlRig.png"))
         self.__full_build_btn.clicked.connect(
             lambda x: self.__full_build_guide()
         )
-        self.__wire_full_build_button(self.__full_build_btn)
+        self.__full_build_btn.rightClicked.connect(
+            lambda: self.__full_build_guide(with_log=True)
+        )
 
         build_layout = QtWidgets.QHBoxLayout()
         build_layout.setContentsMargins(0, 0, 0, 0)
@@ -510,10 +516,17 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         )
         align_layout.addWidget(self.__fit_to_pos_btn, 0, 0)
 
-        self.__align_mid_pos_btn = QtWidgets.QPushButton("Mid Pos")
+        self.__align_mid_pos_btn = widget.ToolPushButton(
+            "Mid Pos",
+            "Move first selection to average position of others",
+            "Move first selection to bounding box center of others",
+        )
         self.__align_mid_pos_btn.setIcon(QtGui.QIcon(":/UVAlignMiddleV.png"))
         self.__align_mid_pos_btn.clicked.connect(
             lambda x: self.__align_mid_pos()
+        )
+        self.__align_mid_pos_btn.rightClicked.connect(
+            self.__align_mid_pos_bbox
         )
         align_layout.addWidget(self.__align_mid_pos_btn, 0, 1)
 
@@ -570,19 +583,46 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
         rotate_icon = QtGui.QIcon(":/rotate_M.png")
 
-        self.__rot_x90_btn = QtWidgets.QPushButton("X 90")
+        self.__rot_x90_btn = widget.ToolPushButton(
+            "X 90",
+            "Rotate X +90",
+            "Rotate X -90",
+        )
         self.__rot_x90_btn.setIcon(rotate_icon)
-        self.__wire_rotate_button(self.__rot_x90_btn, "x")
+        self.__rot_x90_btn.clicked.connect(
+            lambda x: self.__rotate_axis("x", 90.0)
+        )
+        self.__rot_x90_btn.rightClicked.connect(
+            lambda: self.__rotate_axis("x", -90.0)
+        )
         align_layout.addWidget(self.__rot_x90_btn, 3, 0)
 
-        self.__rot_y90_btn = QtWidgets.QPushButton("Y 90")
+        self.__rot_y90_btn = widget.ToolPushButton(
+            "Y 90",
+            "Rotate Y +90",
+            "Rotate Y -90",
+        )
         self.__rot_y90_btn.setIcon(rotate_icon)
-        self.__wire_rotate_button(self.__rot_y90_btn, "y")
+        self.__rot_y90_btn.clicked.connect(
+            lambda x: self.__rotate_axis("y", 90.0)
+        )
+        self.__rot_y90_btn.rightClicked.connect(
+            lambda: self.__rotate_axis("y", -90.0)
+        )
         align_layout.addWidget(self.__rot_y90_btn, 3, 1)
 
-        self.__rot_z90_btn = QtWidgets.QPushButton("Z 90")
+        self.__rot_z90_btn = widget.ToolPushButton(
+            "Z 90",
+            "Rotate Z +90",
+            "Rotate Z -90",
+        )
         self.__rot_z90_btn.setIcon(rotate_icon)
-        self.__wire_rotate_button(self.__rot_z90_btn, "z")
+        self.__rot_z90_btn.clicked.connect(
+            lambda x: self.__rotate_axis("z", 90.0)
+        )
+        self.__rot_z90_btn.rightClicked.connect(
+            lambda: self.__rotate_axis("z", -90.0)
+        )
         align_layout.addWidget(self.__rot_z90_btn, 3, 2)
 
         self.__align_crv_btn = QtWidgets.QPushButton("Align Crv")
@@ -630,11 +670,20 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         )
         shape_layout.addWidget(self.__sel_shape_btn, 0, 0)
 
-        self.__scale_shape_btn = QtWidgets.QPushButton("Scale Shape")
+        self.__scale_shape_btn = widget.ToolPushButton(
+            "Scale Shape",
+            "Scale shapes +0.1",
+            "Scale shapes -0.1",
+        )
         self.__scale_shape_btn.setIcon(
             QtGui.QIcon(":/modifyScaleCurvature.png")
         )
-        self.__wire_scale_shape_button(self.__scale_shape_btn)
+        self.__scale_shape_btn.clicked.connect(
+            lambda x: self.__scale_controller_shapes(0.1)
+        )
+        self.__scale_shape_btn.rightClicked.connect(
+            lambda: self.__scale_controller_shapes(-0.1)
+        )
         shape_layout.addWidget(self.__scale_shape_btn, 0, 1)
 
         self.__edit_shape_btn = QtWidgets.QPushButton("Edit")
@@ -1172,6 +1221,10 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__gd.align_mid_pos()
 
     @decorator.undo
+    def __align_mid_pos_bbox(self):
+        self.__gd.align_mid_pos_bbox()
+
+    @decorator.undo
     def __fit_nearest(self):
         self.__gd.fit_nearest()
 
@@ -1240,30 +1293,6 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__solo_move_btn.setChecked(enabled)
         self.__update_solo_move_button_style(enabled)
         self.__solo_move_btn.blockSignals(False)
-
-    def __wire_rotate_button(self, btn, axis):
-        btn.clicked.connect(
-            lambda x: self.__rotate_axis(axis, 90.0)
-        )
-        btn.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        btn.customContextMenuRequested.connect(
-            lambda pos: self.__rotate_axis(axis, -90.0)
-        )
-
-    def __wire_scale_shape_button(self, btn):
-        btn.clicked.connect(
-            lambda x: self.__scale_controller_shapes(0.1)
-        )
-        btn.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        btn.customContextMenuRequested.connect(
-            lambda pos: self.__scale_controller_shapes(-0.1)
-        )
-
-    def __wire_full_build_button(self, btn):
-        btn.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        btn.customContextMenuRequested.connect(
-            lambda pos: self.__full_build_guide(with_log=True)
-        )
 
     @decorator.undo
     def __rotate_axis(self, axis, degrees):
