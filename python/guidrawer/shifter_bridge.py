@@ -980,6 +980,39 @@ def _is_extractable_control(node):
     return cmds.attributeQuery("isCtl", node=node, exists=True)
 
 
+def _get_extract_selection(selection):
+    """Return selection for Extr. Ctrl, selecting parent transforms for shapes.
+
+    Extr. Ctrl requires transforms with isCtl. When only shapes are selected
+    (e.g. after Sel Shape), switch selection to their parent transforms.
+    """
+    if not selection:
+        return selection
+
+    transforms = []
+    seen = set()
+    has_shape = False
+    for node in selection:
+        base = node.split(".", 1)[0]
+        if cmds.objExists(base) and cmds.objectType(base, isAType="shape"):
+            has_shape = True
+            parents = cmds.listRelatives(base, parent=True, fullPath=True)
+            if not parents:
+                continue
+            transform = parents[0]
+        else:
+            transform = node
+
+        if transform not in seen:
+            transforms.append(transform)
+            seen.add(transform)
+
+    if has_shape and transforms:
+        cmds.select(transforms, r=True)
+        return transforms
+    return selection
+
+
 def _extract_shape_to_buffer(node, controllers_org):
     """Extract one control or guide shape into controllers_org."""
     control = pm.PyNode(node)
@@ -1009,12 +1042,13 @@ def extract_controls():
 
     When nothing is selected or the rig root is selected, all controller
     shapes under the built rig are extracted.
+    Shape selection is converted to parent transforms before extract.
     """
-    selection = cmds.ls(sl=True, long=True)
+    selection = _get_extract_selection(cmds.ls(sl=True, long=True))
 
     try:
         controllers_org = pm.PyNode("controllers_org")
-    except TypeError:
+    except (TypeError, RuntimeError):
         cmds.warning(
             "No controllers_org group in the scene or the group is not unique."
         )
