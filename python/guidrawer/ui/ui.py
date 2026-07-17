@@ -16,7 +16,7 @@ from . import widget
 
 
 ICON_PATH = os.path.join(
-    os.path.abspath(os.path.dirname(os.path.dirname(__file__))),
+    os.path.abspath(os.path.dirname(__file__)),
     "icons",
     "guidrawer_icon.svg",
 )
@@ -97,11 +97,13 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
         self.__idx_updating = False
         self.__suppress_next_activate_refresh = False
+        self.__new_scene_watcher = None
 
         self._set_window_icon()
 
         self.__initialize()
         self._setup_focus_clear()
+        self.__install_scene_callbacks()
 
         self.name = None
         self.current_side = None
@@ -701,6 +703,22 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             return
         self.__unbuild_btn.setEnabled(self.__gd.has_built_rig())
 
+    def __install_scene_callbacks(self):
+        self.__remove_scene_callbacks()
+        self.__new_scene_watcher = maya_util.MayaEventWatcher(
+            "NewSceneOpened", self.__on_new_scene
+        )
+        self.__new_scene_watcher.start()
+
+    def __remove_scene_callbacks(self):
+        if not self.__new_scene_watcher:
+            return
+        self.__new_scene_watcher.stop()
+        self.__new_scene_watcher = None
+
+    def __on_new_scene(self):
+        self.__update_unbuild_btn()
+
     def __update_pre_settings_btn(self):
         if not self.__pre_settings_btn:
             return
@@ -937,6 +955,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             cmds.warning(f"Failed to load Guidrawer settings: {exc}")
 
     def closeEvent(self, event):
+        self.__remove_scene_callbacks()
         try:
             self.__save_settings()
         except Exception as exc:
