@@ -1,5 +1,6 @@
 from typing import Callable, Optional
 
+from maya import cmds
 from maya import OpenMaya as om
 from maya import OpenMayaUI as omui
 
@@ -27,9 +28,7 @@ class MayaEventWatcher:
             if callable(self._update_fn):
                 self._update_fn()
         except Exception as e:
-            raise MayaAPIError(
-                f"Failed to call update function: {e}"
-            ) from e
+            cmds.warning(f"Failed to call update function: {e}")
 
     def start(self) -> bool:
         """Install the event callback if not already started."""

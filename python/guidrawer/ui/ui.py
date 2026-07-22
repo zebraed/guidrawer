@@ -97,7 +97,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
         self.__idx_updating = False
         self.__suppress_next_activate_refresh = False
-        self.__new_scene_watcher = None
+        self.__scene_watchers = []
 
         self._set_window_icon()
 
@@ -754,19 +754,26 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
     def __install_scene_callbacks(self):
         self.__remove_scene_callbacks()
-        self.__new_scene_watcher = maya_util.MayaEventWatcher(
-            "NewSceneOpened", self.__on_new_scene
-        )
-        self.__new_scene_watcher.start()
+        for event_name in ("NewSceneOpened", "SceneOpened", "deleteAll"):
+            watcher = maya_util.MayaEventWatcher(
+                event_name, self.__on_scene_changed
+            )
+            watcher.start()
+            self.__scene_watchers.append(watcher)
 
     def __remove_scene_callbacks(self):
-        if not self.__new_scene_watcher:
-            return
-        self.__new_scene_watcher.stop()
-        self.__new_scene_watcher = None
+        for watcher in self.__scene_watchers:
+            watcher.stop()
+        self.__scene_watchers = []
 
-    def __on_new_scene(self):
+    def __on_scene_changed(self):
+        if self.__unbuild_btn:
+            self.__unbuild_btn.setEnabled(False)
+        QtCore.QTimer.singleShot(0, self.__refresh_scene_dependent_buttons)
+
+    def __refresh_scene_dependent_buttons(self):
         self.__update_unbuild_btn()
+        self.__update_full_build_btn()
 
     def __update_pre_settings_btn(self):
         if not self.__pre_settings_btn:
