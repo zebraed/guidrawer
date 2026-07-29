@@ -54,6 +54,45 @@ class MayaEventWatcher:
         self._cb_id = None
 
 
+class MayaSceneWatcher:
+    """Manage Maya scene callbacks using OpenMaya."""
+
+    def __init__(self, message: int, update_fn: Callable[[], None]):
+        self._message: int = message
+        self._update_fn: Callable[[], None] = update_fn
+        self._cb_id: Optional[int] = None
+
+    def _on_message(self, *_args):
+        try:
+            if callable(self._update_fn):
+                self._update_fn()
+        except Exception as e:
+            cmds.warning(f"Failed to call scene update function: {e}")
+
+    def start(self) -> bool:
+        """Install the scene callback if not already started."""
+        if self._cb_id is not None:
+            return True
+
+        try:
+            self._cb_id = om.MSceneMessage.addCallback(
+                self._message, self._on_message
+            )
+            return True
+        except Exception as e:
+            self._cb_id = None
+            raise MayaAPIError(
+                f"Failed to install scene callback: {e}"
+            ) from e
+
+    def stop(self) -> None:
+        """Remove the scene callback if present."""
+        if self._cb_id is None:
+            return
+        om.MMessage.removeCallback(self._cb_id)
+        self._cb_id = None
+
+
 def get_maya_main_window():
     """Get the main window of Maya."""
     try:

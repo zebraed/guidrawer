@@ -3,6 +3,8 @@ import json
 import os
 
 from maya import cmds
+from maya import OpenMaya as om
+from maya import utils as maya_utils
 
 from mgear.vendor.Qt import QtCore, QtGui, QtWidgets
 
@@ -754,9 +756,12 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
     def __install_scene_callbacks(self):
         self.__remove_scene_callbacks()
-        for event_name in ("NewSceneOpened", "SceneOpened", "deleteAll"):
-            watcher = maya_util.MayaEventWatcher(
-                event_name, self.__on_scene_changed
+        for message in (
+            om.MSceneMessage.kAfterNew,
+            om.MSceneMessage.kAfterOpen,
+        ):
+            watcher = maya_util.MayaSceneWatcher(
+                message, self.__on_scene_changed
             )
             watcher.start()
             self.__scene_watchers.append(watcher)
@@ -769,7 +774,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
     def __on_scene_changed(self):
         if self.__unbuild_btn:
             self.__unbuild_btn.setEnabled(False)
-        QtCore.QTimer.singleShot(0, self.__refresh_scene_dependent_buttons)
+        maya_utils.executeDeferred(self.__refresh_scene_dependent_buttons)
 
     def __refresh_scene_dependent_buttons(self):
         self.__update_unbuild_btn()
