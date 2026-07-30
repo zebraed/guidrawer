@@ -1,5 +1,13 @@
 # Changelog
 
+## [2026-07-30] - Version 3.2.0
+
+- Added **Import / Export** buttons below Settings: import and export mGear guide templates
+- Added **Tmp Unparent / Re Parent**: temporarily parent selected components under a world-level group and restore them to their original parents; Re Parent enabled only while components are unparented, right-click reparents all
+- **Mid Pos**: right-click aligns to the bounding box center of the selected transforms; unified selection order with other placement tools (first selection moves, the rest are sources)
+- **Extr. Ctrl**: resolve shape-only selection to its parent transform; warn instead of erroring when `controllers_org` is missing
+- Persist collapsible group expanded / collapsed state and window width via Maya `optionVar`
+
 ## [2026-07-16] - Version 3.1.2
 
 - Vanilla Build: build selected guide component subtree; Settings opens Guide Top when nothing is selected
