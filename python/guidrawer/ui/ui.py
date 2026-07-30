@@ -94,6 +94,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__suppress_next_activate_refresh = False
         self.__scene_watchers = []
         self.__collapsible_groups = []
+        self.__restored_width = 0
 
         self._set_window_icon()
 
@@ -126,12 +127,10 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
     def __window_geometry_for_settings(self):
         frame = self.frameGeometry()
-        geometry = self.geometry()
         return {
             "x": frame.x(),
             "y": frame.y(),
-            "width": geometry.width(),
-            "height": geometry.height(),
+            "width": self.width(),
         }
 
     def __get_expanded_groups(self):
@@ -173,10 +172,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
         geometry = settings.get("window_geometry")
         if isinstance(geometry, dict):
-            self.resize(
-                int(geometry.get("width", self.width())),
-                int(geometry.get("height", self.height())),
-            )
+            self.__restored_width = int(geometry.get("width", 0))
             self.move(
                 int(geometry.get("x", self.x())),
                 int(geometry.get("y", self.y())),
@@ -1053,8 +1049,15 @@ class GuidrawerUI(QtWidgets.QMainWindow):
     def __on_collapsible_group_toggled(self, expanded):
         QtCore.QTimer.singleShot(0, self.__lock_window_height)
 
+    def __apply_restored_width(self):
+        if self.__restored_width <= 0:
+            return
+        self.resize(self.__restored_width, self.height())
+        self.__restored_width = 0
+
     def __finalize_window_layout(self):
         self.__lock_solo_move_button_size()
+        self.__apply_restored_width()
         self.__lock_window_height()
 
     def show(self):
