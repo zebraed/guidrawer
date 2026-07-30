@@ -54,6 +54,8 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__reset_pre_settings_btn = None
         self.__create_gd_btn = None
         self.__settings_btn = None
+        self.__import_guide_btn = None
+        self.__export_guide_btn = None
         self.__mir_gd_btn = None
         self.__dup_gd_btn = None
         self.__del_gd_btn = None
@@ -372,8 +374,25 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             lambda x: self.__open_settings()
         )
 
+        io_layout = QtWidgets.QHBoxLayout()
+        self.__import_guide_btn = QtWidgets.QPushButton("Import", parent=opt_widget)
+        self.__import_guide_btn.setIcon(icon.ICONS.import_guide())
+        self.__import_guide_btn.setToolTip("Import Guide Template")
+        self.__import_guide_btn.clicked.connect(
+            lambda x: self.__import_guide_template()
+        )
+        self.__export_guide_btn = QtWidgets.QPushButton("Export", parent=opt_widget)
+        self.__export_guide_btn.setIcon(icon.ICONS.export_guide())
+        self.__export_guide_btn.setToolTip("Export Guide Template")
+        self.__export_guide_btn.clicked.connect(
+            lambda x: self.__export_guide_template()
+        )
+        io_layout.addWidget(self.__import_guide_btn)
+        io_layout.addWidget(self.__export_guide_btn)
+
         main_option_layout.addWidget(self.__create_gd_btn)
         main_option_layout.addWidget(self.__settings_btn)
+        main_option_layout.addLayout(io_layout)
         main_option_layout.addWidget(self.__hl_frame1)
 
         tools_group, tools_frame = widget.group_box_frame(
@@ -1244,6 +1263,12 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
     def __open_settings(self):
         self.__gd.open_settings(cmds.ls(sl=True, fl=True))
+
+    def __import_guide_template(self):
+        self.__gd.import_guide_template()
+
+    def __export_guide_template(self):
+        self.__gd.export_guide_template()
 
     def __open_pre_settings(self):
         self.__gd.open_pre_settings(

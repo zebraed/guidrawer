@@ -223,6 +223,14 @@ class Guidrawer:
         """Open the mGear settings UI for the first selected guide or component."""
         bridge.open_settings_from_selection(nodes)
 
+    def import_guide_template(self):
+        """Import a guide template."""
+        bridge.import_guide_template()
+
+    def export_guide_template(self):
+        """Export a guide template."""
+        bridge.export_guide_template()
+
     def extract_controls(self):
         """Extract selected controls, or all rig controls when nothing or rig root is selected."""
         bridge.extract_controls()

@@ -61,6 +61,8 @@ class IconSettings:
     reset_pre_settings: Icon
     create_guide: Icon
     settings: Icon
+    import_guide: Icon
+    export_guide: Icon
     duplicate_guide: Icon
     mirror_guide: Icon
     delete_guide: Icon
@@ -106,6 +108,8 @@ ICONS = IconSettings(
     reset_pre_settings=Icon(":/deletePreset.png"),
     create_guide=Icon(":/createBin.png"),
     settings=Icon(":/advancedSettings.png"),
+    import_guide=Icon("mgear_log-in.svg", mgear=True),
+    export_guide=Icon("mgear_log-out.svg", mgear=True),
     duplicate_guide=Icon(":/teCompDup.png"),
     mirror_guide=Icon(":/polySymmetrizeUV.png"),
     delete_guide=Icon(":/deleteRenderPass.png"),

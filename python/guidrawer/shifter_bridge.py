@@ -16,6 +16,7 @@ import mgear.pymaya as pm
 import mgear.shifter as shifter
 from mgear.shifter import guide as shifter_guide
 from mgear.shifter import guide_manager
+from mgear.shifter import io as shifter_io
 from mgear.shifter import utils as shifter_utils
 from mgear.shifter.component import chain_guide_initializer
 from mgear.shifter.guide_explorer import utils as guide_explorer_utils
@@ -1158,6 +1159,16 @@ def _extract_shape_to_buffer(node, controllers_org):
             pm.sets(obj_set, remove=new)
     except TypeError:
         pass
+
+
+def import_guide_template():
+    """Import a guide template via mGear shifter.io."""
+    shifter_io.import_guide_template(None)
+
+
+def export_guide_template():
+    """Export a guide template via mGear shifter.io."""
+    shifter_io.export_guide_template(None, None)
 
 
 def extract_controls():
