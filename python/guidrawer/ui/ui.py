@@ -17,9 +17,6 @@ from .. import shifter_bridge as bridge
 from . import widget
 
 
-_SOLO_MOVE_ON_STYLE = "QPushButton { border: 2px solid #FFD700; }"
-
-
 class GuidrawerUI(QtWidgets.QMainWindow):
     """
     Guidrawer UI class
@@ -96,6 +93,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__idx_updating = False
         self.__suppress_next_activate_refresh = False
         self.__scene_watchers = []
+        self.__collapsible_groups = []
 
         self._set_window_icon()
 
@@ -136,6 +134,12 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             "height": geometry.height(),
         }
 
+    def __get_expanded_groups(self):
+        expanded = {}
+        for group in self.__collapsible_groups:
+            expanded[group.objectName()] = group.is_expanded()
+        return expanded
+
     def __gather_settings(self):
         auto_side_mode = self.__get_auto_side_mode()
         if self.__auto_side_group and not self.__auto_side_group.isChecked():
@@ -153,6 +157,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
                 and self.__auto_side_group.isChecked()
             ),
             "auto_side_mode": auto_side_mode,
+            "expanded_groups": self.__get_expanded_groups(),
         }
 
     def __set_combo_text(self, combo, text):
@@ -206,6 +211,17 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         index = settings.get("index")
         if isinstance(index, int):
             self.__set_idx(index)
+
+        self.__set_expanded_groups(settings.get("expanded_groups"))
+
+    def __set_expanded_groups(self, expanded_groups):
+        if not isinstance(expanded_groups, dict):
+            return
+
+        for group in self.__collapsible_groups:
+            expanded = expanded_groups.get(group.objectName())
+            if isinstance(expanded, bool):
+                group.set_expanded(expanded)
 
     def __save_settings(self):
         data = self.__gather_settings()
@@ -368,6 +384,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             "Guide Tools", self.__main_widget, "guideTools"
         )
         tools_group.toggled.connect(self.__on_collapsible_group_toggled)
+        self.__collapsible_groups.append(tools_group)
         tools_inner_layout = QtWidgets.QVBoxLayout(tools_frame)
         tools_inner_layout.setSpacing(0)
         tools_inner_layout.setContentsMargins(0, 0, 0, 0)
@@ -528,6 +545,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             "Placement Tools", self.__main_widget, "guideAlign"
         )
         align_group.toggled.connect(self.__on_collapsible_group_toggled)
+        self.__collapsible_groups.append(align_group)
         align_inner_layout = QtWidgets.QVBoxLayout(align_frame)
         align_inner_layout.setSpacing(0)
         align_inner_layout.setContentsMargins(0, 0, 0, 0)
@@ -688,6 +706,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             "controllerShapeTools",
         )
         shape_group.toggled.connect(self.__on_collapsible_group_toggled)
+        self.__collapsible_groups.append(shape_group)
         shape_inner_layout = QtWidgets.QVBoxLayout(shape_frame)
         shape_inner_layout.setSpacing(0)
         shape_inner_layout.setContentsMargins(0, 0, 0, 0)
@@ -1331,7 +1350,9 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
     def __update_solo_move_button_style(self, enabled):
         if enabled:
-            self.__solo_move_btn.setStyleSheet(_SOLO_MOVE_ON_STYLE)
+            self.__solo_move_btn.setStyleSheet(
+                "QPushButton { border: 2px solid #FFD700; }"
+            )
         else:
             self.__solo_move_btn.setStyleSheet("")
 
@@ -1342,7 +1363,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
         enabled = btn.isChecked()
 
-        btn.setStyleSheet(_SOLO_MOVE_ON_STYLE)
+        btn.setStyleSheet("QPushButton { border: 2px solid #FFD700; }")
         btn.style().unpolish(btn)
         btn.style().polish(btn)
         on_size = btn.sizeHint()
