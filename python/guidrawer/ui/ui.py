@@ -71,6 +71,8 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__guide_symmetry_btn = None
         self.__component_type_lister_btn = None
         self.__chain_utils_btn = None
+        self.__temporary_unparent_btn = None
+        self.__reparent_btn = None
         self.__vanilla_build_btn = None
         self.__full_build_btn = None
         self.__unbuild_btn = None
@@ -458,6 +460,36 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         guide_tools_layout.addWidget(self.__component_type_lister_btn)
         guide_tools_layout.addWidget(self.__chain_utils_btn)
 
+        self.__temporary_unparent_btn = QtWidgets.QPushButton(
+            "Tmp Unparent"
+        )
+        self.__temporary_unparent_btn.setIcon(QtGui.QIcon(":/parent.png"))
+        self.__temporary_unparent_btn.clicked.connect(
+            lambda x: self.__temporary_unparent_components()
+        )
+
+        self.__reparent_btn = widget.ToolPushButton(
+            "Reparent",
+            "Reparent selected components",
+            "Reparent all temporarily unparented components",
+        )
+        self.__reparent_btn.setIcon(
+            self.__tinted_icon(
+                ":/parent.png", QtGui.QColor(120, 200, 255)
+            )
+        )
+        self.__reparent_btn.clicked.connect(
+            lambda x: self.__reparent_components()
+        )
+        self.__reparent_btn.rightClicked.connect(
+            self.__reparent_all_components
+        )
+
+        temporary_parent_layout = QtWidgets.QHBoxLayout()
+        temporary_parent_layout.setContentsMargins(0, 0, 0, 0)
+        temporary_parent_layout.addWidget(self.__temporary_unparent_btn)
+        temporary_parent_layout.addWidget(self.__reparent_btn)
+
         self.__hl_frame3 = widget.HorizontalLine(tools_frame)
 
         self.__vanilla_build_btn = QtWidgets.QPushButton("Vanilla Build")
@@ -494,6 +526,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         tools_inner_layout.addLayout(delete_layout)
         tools_inner_layout.addLayout(update_tools_layout)
         tools_inner_layout.addLayout(guide_tools_layout)
+        tools_inner_layout.addLayout(temporary_parent_layout)
         tools_inner_layout.addWidget(self.__hl_frame3)
         tools_inner_layout.addLayout(build_layout)
         tools_inner_layout.addWidget(self.__unbuild_btn)
@@ -743,6 +776,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__update_pre_settings_btn()
         self.__update_full_build_btn()
         self.__update_unbuild_btn()
+        self.__update_reparent_btn()
 
     def __update_full_build_btn(self):
         if not self.__full_build_btn:
@@ -754,6 +788,13 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             return
         self.__unbuild_btn.setEnabled(self.__gd.has_built_rig())
 
+    def __update_reparent_btn(self):
+        if not self.__reparent_btn:
+            return
+        self.__reparent_btn.setEnabled(
+            self.__gd.has_temporary_unparented_components()
+        )
+
     def __install_scene_callbacks(self):
         self.__remove_scene_callbacks()
         for message in (
@@ -762,6 +803,13 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         ):
             watcher = maya_util.MayaSceneWatcher(
                 message, self.__on_scene_changed
+            )
+            watcher.start()
+            self.__scene_watchers.append(watcher)
+
+        for event_name in ("Undo", "Redo"):
+            watcher = maya_util.MayaEventWatcher(
+                event_name, self.__on_undo_redo
             )
             watcher.start()
             self.__scene_watchers.append(watcher)
@@ -776,9 +824,13 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             self.__unbuild_btn.setEnabled(False)
         maya_utils.executeDeferred(self.__refresh_scene_dependent_buttons)
 
+    def __on_undo_redo(self):
+        maya_utils.executeDeferred(self.__refresh_scene_dependent_buttons)
+
     def __refresh_scene_dependent_buttons(self):
         self.__update_unbuild_btn()
         self.__update_full_build_btn()
+        self.__update_reparent_btn()
 
     def __update_pre_settings_btn(self):
         if not self.__pre_settings_btn:
@@ -993,6 +1045,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__sync_solo_move_button()
         self.__update_full_build_btn()
         self.__update_unbuild_btn()
+        self.__update_reparent_btn()
         self.shrink()
         super().show()
         QtCore.QTimer.singleShot(0, self.__finalize_window_layout)
@@ -1008,6 +1061,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             self.__update_pre_settings_btn()
             self.__update_full_build_btn()
             self.__update_unbuild_btn()
+            self.__update_reparent_btn()
 
     def restore(self):
         try:
@@ -1150,6 +1204,23 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__gd.delete_guide_keep_children(cmds.ls(sl=True, fl=True))
         self.__refresh_component_index()
 
+    @decorator.undo
+    def __temporary_unparent_components(self):
+        self.__gd.temporary_unparent_components(
+            cmds.ls(sl=True, fl=True)
+        )
+        self.__update_reparent_btn()
+
+    @decorator.undo
+    def __reparent_components(self):
+        self.__gd.reparent_components(cmds.ls(sl=True, fl=True))
+        self.__update_reparent_btn()
+
+    @decorator.undo
+    def __reparent_all_components(self):
+        self.__gd.reparent_all_components()
+        self.__update_reparent_btn()
+
     def __open_settings(self):
         self.__gd.open_settings(cmds.ls(sl=True, fl=True))
 
@@ -1209,6 +1280,28 @@ class GuidrawerUI(QtWidgets.QMainWindow):
             if not icon.isNull():
                 return icon
         return QtGui.QIcon()
+
+    @staticmethod
+    def __tinted_icon(resource_path, color):
+        """Return an icon tinted with the given color, keeping its shading."""
+        source = QtGui.QPixmap(resource_path)
+        if source.isNull():
+            return QtGui.QIcon()
+
+        tinted = QtGui.QPixmap(source.size())
+        tinted.fill(QtCore.Qt.transparent)
+
+        painter = QtGui.QPainter(tinted)
+        painter.drawPixmap(0, 0, source)
+        painter.setCompositionMode(QtGui.QPainter.CompositionMode_Multiply)
+        painter.fillRect(tinted.rect(), color)
+        painter.setCompositionMode(
+            QtGui.QPainter.CompositionMode_DestinationIn
+        )
+        painter.drawPixmap(0, 0, source)
+        painter.end()
+
+        return QtGui.QIcon(tinted)
 
     @decorator.undo
     def __vanilla_build_guide(self):

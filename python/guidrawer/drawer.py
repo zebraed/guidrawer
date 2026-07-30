@@ -194,6 +194,31 @@ class Guidrawer:
             if cmds.objExists(root):
                 bridge.delete_component_keep_children(root)
 
+    def has_temporary_unparented_components(self):
+        """Return whether any component is temporarily unparented."""
+        return bridge.has_temporary_unparented_components()
+
+    def temporary_unparent_components(self, nodes):
+        """Temporarily parent selected components under a world group."""
+        if not nodes:
+            cmds.warning("Nothing selected.")
+            return
+        bridge.temporary_unparent_components(
+            self._list_guide_roots(nodes)
+        )
+
+    def reparent_components(self, nodes):
+        """Restore selected components to their original parents."""
+        if not nodes:
+            cmds.warning("Nothing selected.")
+            return
+        bridge.reparent_components(self._list_guide_roots(nodes))
+
+    def reparent_all_components(self):
+        """Restore all temporarily unparented components."""
+        roots = bridge.list_temporary_unparented_components()
+        bridge.reparent_components(roots)
+
     def open_settings(self, nodes):
         """Open the mGear settings UI for the first selected guide or component."""
         bridge.open_settings_from_selection(nodes)

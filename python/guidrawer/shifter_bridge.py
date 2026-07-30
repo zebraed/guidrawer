@@ -44,6 +44,9 @@ _SKIP_PRE_SETTINGS_PARAMS = {
     "comp_local_name",
 }
 
+_TEMP_UNPARENT_GROUP = "guidrawer_temp_unparent_grp"
+_ORIGINAL_PARENT_ATTR = "guidrawerOriginalParent"
+
 
 def list_component_types():
     """Return all component type names recognized by mGear.
@@ -500,6 +503,126 @@ def delete_component_keep_children(root):
             cmds.parent(child_root, world=True)
 
     delete_component(root)
+
+
+def _get_temp_unparent_group(create=False):
+    """Return the world-level temporary unparent group."""
+    group_path = f"|{_TEMP_UNPARENT_GROUP}"
+    if cmds.objExists(group_path):
+        if cmds.nodeType(group_path) != "transform":
+            cmds.warning(
+                f"{_TEMP_UNPARENT_GROUP} exists and is not a transform."
+            )
+            return None
+        return pm.PyNode(group_path)
+
+    if not create:
+        return None
+    return pm.group(empty=True, world=True, name=_TEMP_UNPARENT_GROUP)
+
+
+def list_temporary_unparented_components():
+    """Return component roots under the temporary unparent group."""
+    temp_group = _get_temp_unparent_group()
+    if temp_group is None:
+        return []
+
+    children = temp_group.getChildren(type="transform")
+    if not children:
+        return []
+
+    roots = []
+    for child in children:
+        if child.hasAttr(_ORIGINAL_PARENT_ATTR):
+            roots.append(child.longName())
+    return roots
+
+
+def has_temporary_unparented_components():
+    """Return whether any component is temporarily unparented."""
+    return bool(list_temporary_unparented_components())
+
+
+def parent_components(roots, parent=None):
+    """Parent component roots under parent, or world if parent is None.
+
+    World transform is preserved.
+
+    Args:
+        roots: Component root names or PyNodes.
+        parent: Destination parent transform, or None for world.
+
+    Returns:
+        list: Parented PyNode roots.
+    """
+    if not roots:
+        return []
+
+    moved = []
+    for root in roots:
+        node = pm.PyNode(root)
+        if parent is None:
+            pm.parent(node, world=True, absolute=True)
+        else:
+            pm.parent(node, parent, absolute=True)
+        moved.append(node)
+    return moved
+
+
+def temporary_unparent_components(roots):
+    """Parent component roots under a temporary world-level group."""
+    if not roots:
+        return
+
+    root_nodes = [pm.PyNode(root) for root in roots]
+    temp_group = _get_temp_unparent_group(create=True)
+    if temp_group is None:
+        return
+
+    to_move = []
+    for root in root_nodes:
+        if root.hasAttr(_ORIGINAL_PARENT_ATTR):
+            cmds.warning(f"{root.name()}: Is already temporarily unparented.")
+            continue
+
+        root.addAttr(_ORIGINAL_PARENT_ATTR, attributeType="message")
+        original_parent = root.getParent()
+        if original_parent is not None:
+            original_parent.message.connect(
+                root.attr(_ORIGINAL_PARENT_ATTR)
+            )
+        to_move.append(root)
+
+    moved = parent_components(to_move, temp_group)
+    if moved:
+        pm.select(moved, r=True)
+
+
+def reparent_components(roots):
+    """Restore temporarily unparented component roots."""
+    if not roots:
+        return
+
+    root_nodes = [pm.PyNode(root) for root in roots]
+    restored = []
+    for root in root_nodes:
+        if not root.hasAttr(_ORIGINAL_PARENT_ATTR):
+            cmds.warning(f"{root.name()}: Is not temporarily unparented.")
+            continue
+
+        original_parents = root.attr(
+            _ORIGINAL_PARENT_ATTR
+        ).listConnections(s=True, d=False)
+        parent = original_parents[0] if original_parents else None
+        restored.extend(parent_components([root], parent))
+        pm.deleteAttr(root.attr(_ORIGINAL_PARENT_ATTR))
+
+    temp_group = _get_temp_unparent_group()
+    if temp_group is not None and not temp_group.getChildren():
+        pm.delete(temp_group)
+
+    if restored:
+        pm.select(restored, r=True)
 
 
 def _get_pre_settings_component_name(comp_type):
