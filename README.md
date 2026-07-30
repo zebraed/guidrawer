@@ -4,7 +4,16 @@
 
 # Guidrawer
 
-Guidrawer is a utility tool for the rigging framework [mGear](https://github.com/mgear-dev/mgear). It is designed to assist "custom" guide drawing during rigging operations on Maya.
+Guidrawer is a utility tool for the rigging framework [mGear](https://github.com/mgear-dev/mgear).
+
+Select something in your scene and draw an mGear guide right at that position.
+On top of drawing, Guidrawer bundles a lot of handy utility tools that speed up
+day-to-day rigging: duplicate / mirror guides, build & unbuild, temporary
+unparent / reparent of components, placement helpers (fit, align position and
+rotation, aim, rotate), controller shape tools (select / scale / edit / replace
+/ mirror shapes, extract controls), and guide template import / export.
+
+It is designed to assist "custom" guide drawing during rigging operations on Maya.
 
 ![Guidrawer UI](docs/ui.png)
 
