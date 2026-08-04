@@ -122,12 +122,12 @@ def _scale_shape_components(shape, factor):
 
 def select_controller_shapes():
     """Select shape nodes from the current controller selection."""
-    selection = cmds.ls(sl=True, long=True)
-    if not selection:
+    sel = cmds.ls(sl=True, long=True)
+    if not sel:
         cmds.warning("Nothing selected.")
         return
 
-    shapes = _list_shapes_for_select(selection)
+    shapes = _list_shapes_for_select(sel)
     if not shapes:
         cmds.warning("No controller shapes found in selection.")
         return
@@ -141,12 +141,12 @@ def scale_shapes(delta):
     Args:
         delta (float): Scale delta. +0.1 scales up by 10%, -0.1 scales down.
     """
-    selection = cmds.ls(sl=True, long=True)
-    if not selection:
+    sel = cmds.ls(sl=True, long=True)
+    if not sel:
         cmds.warning("Nothing selected.")
         return
 
-    shapes = _list_shapes_for_scale(selection)
+    shapes = _list_shapes_for_scale(sel)
     if not shapes:
         cmds.warning("No shapes found in selection.")
         return
@@ -167,9 +167,37 @@ def scale_shapes(delta):
         cmds.warning("No scaleable shapes found in selection.")
 
 
+def _list_parent_transforms(nodes):
+    """Return unique parent transforms for shapes or components."""
+    trs = []
+    seen = set()
+    for node in nodes:
+        base = node.split(".", 1)[0]
+        if not cmds.objExists(base):
+            continue
+        if _is_shape_node(base):
+            parents = cmds.listRelatives(base, parent=True, fullPath=True)
+            if not parents:
+                continue
+            transform = parents[0]
+        else:
+            transform = base
+        if transform not in seen:
+            trs.append(transform)
+            seen.add(transform)
+    return trs
+
+
 def toggle_edit_mode():
-    """Toggle Maya selection between object and component mode."""
+    """Toggle Maya selection between object and component mode.
+
+    Leaving component mode selects parent transforms so Extr. Ctrl can run next.
+    """
     if cmds.selectMode(q=True, component=True):
+        sel = cmds.ls(sl=True, long=True)
+        trs = _list_parent_transforms(sel)
         cmds.selectMode(object=True)
+        if trs:
+            cmds.select(trs, r=True)
     else:
         cmds.selectMode(component=True)
