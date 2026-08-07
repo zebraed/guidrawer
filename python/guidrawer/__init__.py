@@ -1,8 +1,10 @@
 __author__ = "zebraed"
+__email__ = "contact@sarygamysh.com"
+__status__ = "stable"
 __description__ = "mGear Guide Drawer Tools"
-__version__ = "3.2.0"
 __license__ = "MIT"
 __copyright__ = "Copyright 2022-2026 zebraed"
+__version__ = "3.2.0"
 
 
 def showUI(*args):
