@@ -13,6 +13,12 @@ def showUI(*args):
     return _show_ui(*args)
 
 
+def mGear_add_menu():
+    """Add Guidrawer menu item to the mGear menu."""
+    from .menu import mGear_add_menu as _mGear_add_menu
+    return _mGear_add_menu()
+
+
 def Reload():
     """Reload all the modules."""
     import sys
@@ -23,4 +29,4 @@ def Reload():
     print(f"{__name__} Reloaded.")
 
 
-__all__ = ["Reload", "showUI"]
+__all__ = ["Reload", "showUI", "mGear_add_menu"]
