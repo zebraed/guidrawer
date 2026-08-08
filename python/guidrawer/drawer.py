@@ -207,12 +207,40 @@ class Guidrawer:
             self._list_guide_roots(nodes)
         )
 
-    def reparent_components(self, nodes):
-        """Restore selected components to their original parents."""
+    def temporary_unparent_nodes(self, nodes):
+        """Temporarily parent selected transforms under a world group."""
         if not nodes:
             cmds.warning("Nothing selected.")
             return
-        bridge.reparent_components(self._list_guide_roots(nodes))
+
+        transforms = cmds.ls(nodes, long=True, transforms=True)
+        if not transforms:
+            cmds.warning("No transforms selected.")
+            return
+        bridge.temporary_unparent_nodes(transforms)
+
+    def reparent_components(self, nodes):
+        """Restore selected transforms or components to their original parents."""
+        if not nodes:
+            cmds.warning("Nothing selected.")
+            return
+
+        unparented = bridge.list_temporary_unparented_components()
+        targets = []
+        for node in cmds.ls(nodes, long=True, transforms=True):
+            if node in unparented:
+                targets.append(node)
+                continue
+
+            root = bridge.get_component_root(node)
+            if not root:
+                cmds.warning("Can not got guide root.")
+                continue
+            root_path = cmds.ls(root, long=True)[0]
+            if root_path not in targets:
+                targets.append(root_path)
+
+        bridge.reparent_components(targets)
 
     def reparent_all_components(self):
         """Restore all temporarily unparented components."""

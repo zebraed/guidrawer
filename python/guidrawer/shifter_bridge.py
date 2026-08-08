@@ -7,6 +7,7 @@ import os
 from contextlib import contextmanager
 
 from maya import cmds
+
 import mgear
 from mgear.compatible import compatible_comp_dagmenu
 from mgear.core import dag
@@ -624,6 +625,11 @@ def reparent_components(roots):
 
     if restored:
         pm.select(restored, r=True)
+
+
+def temporary_unparent_nodes(nodes):
+    """Temporarily parent selected transforms under the temporary group."""
+    temporary_unparent_components(nodes)
 
 
 def _get_pre_settings_component_name(comp_type):
@@ -1371,10 +1377,6 @@ def _restore_guide_custom_step_flags(pre_enabled, post_enabled):
 
 def vanilla_build_guide():
     """Build rig from current selection with pre/post custom steps disabled.
-
-    Matches mGear behavior: builds the selected guide component and its
-    children. If nothing is selected, falls back to the ``guide`` model.
-    Custom step flags are temporarily disabled, then restored.
     """
     cleanup_pre_settings_templates()
 

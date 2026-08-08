@@ -487,8 +487,10 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         guide_tools_layout.addWidget(self.__component_type_lister_btn)
         guide_tools_layout.addWidget(self.__chain_utils_btn)
 
-        self.__temporary_unparent_btn = QtWidgets.QPushButton(
-            "Tmp Unparent"
+        self.__temporary_unparent_btn = widget.ToolPushButton(
+            "Tmp Unparent",
+            "Temporarily unparent selected components",
+            "Temporarily unparent selected transforms",
         )
         self.__temporary_unparent_btn.setIcon(
             icon.ICONS.temporary_unparent()
@@ -496,11 +498,14 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         self.__temporary_unparent_btn.clicked.connect(
             lambda x: self.__temporary_unparent_components()
         )
+        self.__temporary_unparent_btn.rightClicked.connect(
+            self.__temporary_unparent_nodes
+        )
 
         self.__reparent_btn = widget.ToolPushButton(
             "Reparent",
-            "Reparent selected components",
-            "Reparent all temporarily unparented components",
+            "Reparent selected transforms or components",
+            "Reparent all temporarily unparented items",
         )
         self.__reparent_btn.setIcon(icon.ICONS.reparent())
         self.__reparent_btn.clicked.connect(
@@ -1247,6 +1252,13 @@ class GuidrawerUI(QtWidgets.QMainWindow):
     @decorator.undo
     def __temporary_unparent_components(self):
         self.__gd.temporary_unparent_components(
+            cmds.ls(sl=True, fl=True)
+        )
+        self.__update_reparent_btn()
+
+    @decorator.undo
+    def __temporary_unparent_nodes(self):
+        self.__gd.temporary_unparent_nodes(
             cmds.ls(sl=True, fl=True)
         )
         self.__update_reparent_btn()
