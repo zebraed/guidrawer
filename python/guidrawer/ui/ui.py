@@ -1278,6 +1278,7 @@ class GuidrawerUI(QtWidgets.QMainWindow):
 
     def __import_guide_template(self):
         self.__gd.import_guide_template()
+        self.__update_full_build_btn()
 
     def __export_guide_template(self):
         self.__gd.export_guide_template()
