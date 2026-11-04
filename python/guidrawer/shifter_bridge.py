@@ -1298,11 +1298,37 @@ def update_component_type():
     compatible_comp_dagmenu.update_component_type_and_update_guide_with_dagmenu()
 
 
+def _search_xbmlangpath_icon(icon_name):
+    """Search mGear directories in XBMLANGPATH for icon_name."""
+    for entry in os.environ.get("XBMLANGPATH", "").split(os.pathsep):
+        if "mgear" not in entry.lower():
+            continue
+        candidate = os.path.join(entry, icon_name)
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
 def get_mgear_icon_path(icon_name):
-    """Return absolute path to an mGear icon file, or None."""
-    path = guide_explorer_utils.get_mgear_icon_path(icon_name)
+    """Return absolute path to an mGear icon file, or None.
+
+    Older mGear versions do not provide
+    ``guide_explorer.utils.get_mgear_icon_path``, so fall back to
+    searching XBMLANGPATH and then the mGear icons directory.
+    """
+    resolver = getattr(guide_explorer_utils, "get_mgear_icon_path", None)
+    if resolver is not None:
+        path = resolver(icon_name)
+        if path:
+            return str(path)
+
+    path = _search_xbmlangpath_icon(icon_name)
     if path:
-        return str(path)
+        return path
+
+    path = pyqt.get_icon_path(icon_name)
+    if path and os.path.isfile(path):
+        return path
     return None
 
 
