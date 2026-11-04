@@ -1,5 +1,14 @@
 # Changelog
 
+## [2026-11-04] - Version 3.3.0
+
+- Added **Selection Tools** group between Guide Tools and Placement Tools
+- **Select Opp Side / Add Sel Opp Side**: left-click finds the opposite side by name, right-click by position (mirrored on the YZ plane); Add keeps the current selection
+- **Select Component**: select all locators of the component, right-click selects component roots only
+- **Select Child Comps**: select direct child components, right-click selects all descendants
+- **Guide <-> Ctl**: switch the selection between guides and built controls by detecting the selection type, right-click adds the counterpart to the selection
+- **Tmp Unparent**: right-click temporarily unparents selected transforms
+
 ## [2026-07-30] - Version 3.2.0
 
 - Added **Import / Export** buttons below Settings: import and export mGear guide templates
