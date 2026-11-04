@@ -92,6 +92,11 @@ class IconSettings:
     replace_shape: Icon
     mirror_shape: Icon
     extract_control: Icon
+    select_opp_side: Icon
+    add_sel_opp_side: Icon
+    select_component: Icon
+    select_child_comps: Icon
+    guide_ctl_switch: Icon
 
 
 def __get_icon_path(name):
@@ -141,4 +146,9 @@ ICONS = IconSettings(
     replace_shape=Icon(":/isolateCurve.png"),
     mirror_shape=Icon(":/out_alignCurve.png"),
     extract_control=Icon(":/extend.png"),
+    select_opp_side=Icon(":/polySymmetrizeUV.png"),
+    add_sel_opp_side=Icon(":/polySymmetrizeUV.png", tint=(120, 200, 255)),
+    select_component=Icon(":/lassoSelect.png"),
+    select_child_comps=Icon(":/lassoSelect.png", tint=(120, 200, 255)),
+    guide_ctl_switch=Icon(":/switchOn.png"),
 )

@@ -10,6 +10,7 @@ from mgear.vendor.Qt import QtCore, QtWidgets
 from .. import const
 from .. import decorator
 from .. import drawer
+from .. import guide_select
 from .. import maya_util
 from . import icon
 from . import model
@@ -561,6 +562,96 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         tools_inner_layout.addLayout(build_layout)
         tools_inner_layout.addWidget(self.__unbuild_btn)
 
+        select_group, select_frame = widget.group_box_frame(
+            "Selection Tools", self.__main_widget, "guideSelection"
+        )
+        select_group.toggled.connect(self.__on_collapsible_group_toggled)
+        self.__collapsible_groups.append(select_group)
+        select_inner_layout = QtWidgets.QVBoxLayout(select_frame)
+        select_inner_layout.setSpacing(0)
+        select_inner_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.__select_opp_side_btn = widget.ToolPushButton(
+            "Select Opp Side",
+            "Select opposite side by name",
+            "Select opposite side by position",
+        )
+        self.__select_opp_side_btn.setIcon(icon.ICONS.select_opp_side())
+        self.__select_opp_side_btn.clicked.connect(
+            lambda x: self.__select_opposite_side(False, False)
+        )
+        self.__select_opp_side_btn.rightClicked.connect(
+            lambda: self.__select_opposite_side(True, False)
+        )
+
+        self.__add_sel_opp_side_btn = widget.ToolPushButton(
+            "Add Sel Opp Side",
+            "Add opposite side to selection by name",
+            "Add opposite side to selection by position",
+        )
+        self.__add_sel_opp_side_btn.setIcon(icon.ICONS.add_sel_opp_side())
+        self.__add_sel_opp_side_btn.clicked.connect(
+            lambda x: self.__select_opposite_side(False, True)
+        )
+        self.__add_sel_opp_side_btn.rightClicked.connect(
+            lambda: self.__select_opposite_side(True, True)
+        )
+
+        opp_side_layout = QtWidgets.QHBoxLayout()
+        opp_side_layout.setContentsMargins(0, 0, 0, 0)
+        opp_side_layout.addWidget(self.__select_opp_side_btn)
+        opp_side_layout.addWidget(self.__add_sel_opp_side_btn)
+
+        self.__select_component_btn = widget.ToolPushButton(
+            "Select Component",
+            "Select all locators of the component",
+            "Select component roots only",
+        )
+        self.__select_component_btn.setIcon(icon.ICONS.select_component())
+        self.__select_component_btn.clicked.connect(
+            lambda x: self.__select_component(False)
+        )
+        self.__select_component_btn.rightClicked.connect(
+            lambda: self.__select_component(True)
+        )
+
+        self.__select_child_comps_btn = widget.ToolPushButton(
+            "Select Child Comps",
+            "Select direct child components",
+            "Select all descendant components",
+        )
+        self.__select_child_comps_btn.setIcon(
+            icon.ICONS.select_child_comps()
+        )
+        self.__select_child_comps_btn.clicked.connect(
+            lambda x: self.__select_child_components(False)
+        )
+        self.__select_child_comps_btn.rightClicked.connect(
+            lambda: self.__select_child_components(True)
+        )
+
+        component_select_layout = QtWidgets.QHBoxLayout()
+        component_select_layout.setContentsMargins(0, 0, 0, 0)
+        component_select_layout.addWidget(self.__select_component_btn)
+        component_select_layout.addWidget(self.__select_child_comps_btn)
+
+        self.__guide_ctl_switch_btn = widget.ToolPushButton(
+            "Guide <-> Ctl",
+            "Switch selection between guides and controls (auto detect)",
+            "Add the counterpart to the current selection",
+        )
+        self.__guide_ctl_switch_btn.setIcon(icon.ICONS.guide_ctl_switch())
+        self.__guide_ctl_switch_btn.clicked.connect(
+            lambda x: self.__toggle_guide_control(False)
+        )
+        self.__guide_ctl_switch_btn.rightClicked.connect(
+            lambda: self.__toggle_guide_control(True)
+        )
+
+        select_inner_layout.addLayout(opp_side_layout)
+        select_inner_layout.addLayout(component_select_layout)
+        select_inner_layout.addWidget(self.__guide_ctl_switch_btn)
+
         align_group, align_frame = widget.group_box_frame(
             "Placement Tools", self.__main_widget, "guideAlign"
         )
@@ -800,6 +891,8 @@ class GuidrawerUI(QtWidgets.QMainWindow):
         central_layout.setSpacing(5)
         central_layout.addWidget(opt_widget, 0)
         central_layout.addWidget(tools_group, 0)
+        central_layout.addSpacing(8)
+        central_layout.addWidget(select_group, 0)
         central_layout.addSpacing(8)
         central_layout.addWidget(align_group, 0)
         central_layout.addSpacing(8)
@@ -1248,6 +1341,22 @@ class GuidrawerUI(QtWidgets.QMainWindow):
     def __delete_guide_keep_children(self):
         self.__gd.delete_guide_keep_children(cmds.ls(sl=True, fl=True))
         self.__refresh_component_index()
+
+    @decorator.undo
+    def __select_opposite_side(self, by_position, add):
+        guide_select.select_opposite_side(by_position=by_position, add=add)
+
+    @decorator.undo
+    def __select_component(self, roots_only):
+        guide_select.select_component(roots_only=roots_only)
+
+    @decorator.undo
+    def __select_child_components(self, recursive):
+        guide_select.select_child_components(recursive=recursive)
+
+    @decorator.undo
+    def __toggle_guide_control(self, add):
+        guide_select.toggle_guide_control(add=add)
 
     @decorator.undo
     def __temporary_unparent_components(self):
