@@ -4,7 +4,7 @@ __status__ = "stable"
 __description__ = "mGear Guide Drawer Tools"
 __license__ = "MIT"
 __copyright__ = "Copyright 2022-2026 zebraed"
-__version__ = "3.3.1"
+__version__ = "3.3.0"
 
 
 def showUI(*args):
