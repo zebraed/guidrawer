@@ -1,5 +1,10 @@
 # Changelog
 
+## [2026-11-11] - Version 3.3.1
+
+- Fixed an `AttributeError` on mGear 5.4.x, which no longer provides `guide_explorer.utils.get_mgear_icon_path`; icons are now resolved from `XBMLANGPATH` or the mGear icons folder
+- Added a GitHub Actions workflow
+
 ## [2026-11-04] - Version 3.3.0
 
 - Added **Selection Tools** group between Guide Tools and Placement Tools
